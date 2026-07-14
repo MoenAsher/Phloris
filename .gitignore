@@ -1,0 +1,38 @@
+# ---- Python / backend ----
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# Environment variables
+.env
+
+# SQLite database / instance folder contents
+backend/instance/*
+!backend/instance/.gitkeep
+
+# ---- Node / frontend ----
+node_modules/
+dist/
+dist-ssr/
+*.local
+.vite/
+
+# ---- Editors / OS ----
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# ---- Logs / coverage ----
+*.log
+.coverage
+htmlcov/
+.pytest_cache/
