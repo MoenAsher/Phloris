@@ -48,7 +48,10 @@ def _register_jwt_error_handlers() -> None:
 
     @jwt.invalid_token_loader
     def _invalid_token(_reason):
-        return jsonify({"error": "invalid token"}), 422
+        # A malformed/invalid credential is an authentication failure (401),
+        # consistent with the missing-token and expired-token handlers, rather
+        # than Flask-JWT-Extended's default 422.
+        return jsonify({"error": "invalid token"}), 401
 
     @jwt.expired_token_loader
     def _expired_token(_header, _payload):

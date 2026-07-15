@@ -144,12 +144,18 @@ def import_targets(group_id):
         e for (e,) in db.session.query(Target.email).filter_by(target_group_id=group_id)
     }
     created = []
-    skipped = 0
+    rejected = []  # per-row rejections with a reason, for the UI to surface
     seen = set()
     for row in rows:
         email = row["email"]
-        if not _valid_email(email) or email in existing or email in seen:
-            skipped += 1
+        if not _valid_email(email):
+            rejected.append({"email": email, "reason": "invalid email"})
+            continue
+        if email in existing:
+            rejected.append({"email": email, "reason": "already in group"})
+            continue
+        if email in seen:
+            rejected.append({"email": email, "reason": "duplicate in file"})
             continue
         seen.add(email)
         target = Target(
@@ -167,7 +173,10 @@ def import_targets(group_id):
             {
                 "data": {
                     "imported": len(created),
-                    "skipped": skipped,
+                    # `skipped` retained as the rejected-row count; `rejected`
+                    # carries the per-row detail (email + reason).
+                    "skipped": len(rejected),
+                    "rejected": rejected,
                     "targets": [t.to_dict() for t in created],
                 }
             }

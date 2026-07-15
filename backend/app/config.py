@@ -64,6 +64,11 @@ class Config:
     MAIL_DEFAULT_SENDER = os.environ.get(
         "MAIL_DEFAULT_SENDER", "security-team@simulation.local"
     )
+    # Seconds to pause between individual sends during a launch. Mailtrap's
+    # free Email Testing tier rate-limits to roughly one message per second;
+    # the default spaces sends out to avoid tripping it. Set to 0 for a
+    # production SMTP provider with higher throughput.
+    MAIL_SEND_DELAY = float(os.environ.get("MAIL_SEND_DELAY", "1.0"))
 
     # Tracking / CORS
     TRACKING_BASE_URL = os.environ.get("TRACKING_BASE_URL", "http://localhost:5001")
