@@ -76,3 +76,10 @@ def _register_cli(app: Flask) -> None:
 
         init_db()
         print("Initialised the database.")
+
+    @app.cli.command("seed-db")
+    def seed_db_command():
+        """Populate the database with seed data for development."""
+        from .utils.seed import seed
+
+        seed()

@@ -48,6 +48,11 @@ def _record_event(token: str, event_type: EventType) -> TrackingToken | None:
     return tracking
 
 
+# /track/open/<token> (open-pixel tracking via 1×1 image) is out of scope for
+# this build. The `opened` EventType enum value is reserved for a future
+# implementation when that endpoint is added.
+
+
 @tracking_bp.get("/track/click/<token>")
 def track_click(token):
     """Record a `clicked` event, then redirect to the educational feedback page."""

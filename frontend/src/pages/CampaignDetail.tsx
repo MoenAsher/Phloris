@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom'
 import { isAxiosError } from 'axios'
 import {
   ArrowLeft,
+  Flag,
   Loader2,
   Rocket,
   AlertTriangle,
@@ -14,7 +15,9 @@ import { api } from '@/lib/api'
 import type {
   ApiEnvelope,
   Campaign,
+  CampaignMetrics,
   CampaignTargetResult,
+  CampaignTimeline,
   LaunchResult,
   Template,
   TargetGroup,
@@ -44,6 +47,7 @@ import {
 } from '@/components/ui/dialog'
 import { StatusBadge } from '@/components/campaigns/StatusBadge'
 import { OutcomeBadge } from '@/components/campaigns/OutcomeBadge'
+import { CampaignCharts } from '@/components/campaigns/CampaignCharts'
 
 function errorMessage(err: unknown, fallback: string): string {
   if (isAxiosError(err) && err.response?.data?.error) return String(err.response.data.error)
@@ -73,27 +77,39 @@ export function CampaignDetail() {
   const [targets, setTargets] = useState<CampaignTargetResult[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
+  const [metrics, setMetrics] = useState<CampaignMetrics | null>(null)
+  const [timeline, setTimeline] = useState<CampaignTimeline | null>(null)
+
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [launching, setLaunching] = useState(false)
   const [launchError, setLaunchError] = useState<string | null>(null)
   const [launchResult, setLaunchResult] = useState<LaunchResult | null>(null)
 
+  const [completeOpen, setCompleteOpen] = useState(false)
+  const [completing, setCompleting] = useState(false)
+  const [completeError, setCompleteError] = useState<string | null>(null)
+
   const fetchDetail = useCallback(async () => {
     setError(null)
     try {
-      const [campaignResp, templatesResp, groupsResp, targetsResp] = await Promise.all([
-        api.get<ApiEnvelope<Campaign>>(`/api/campaigns/${campaignId}`),
-        api.get<ApiEnvelope<Template[]>>('/api/templates'),
-        api.get<ApiEnvelope<TargetGroup[]>>('/api/target-groups'),
-        api.get<ApiEnvelope<{ targets: CampaignTargetResult[] }>>(
-          `/api/dashboard/campaigns/${campaignId}/targets`,
-        ),
-      ])
+      const [campaignResp, templatesResp, groupsResp, targetsResp, metricsResp, timelineResp] =
+        await Promise.all([
+          api.get<ApiEnvelope<Campaign>>(`/api/campaigns/${campaignId}`),
+          api.get<ApiEnvelope<Template[]>>('/api/templates'),
+          api.get<ApiEnvelope<TargetGroup[]>>('/api/target-groups'),
+          api.get<ApiEnvelope<{ targets: CampaignTargetResult[] }>>(
+            `/api/dashboard/campaigns/${campaignId}/targets`,
+          ),
+          api.get<ApiEnvelope<CampaignMetrics>>(`/api/dashboard/campaigns/${campaignId}/metrics`),
+          api.get<ApiEnvelope<CampaignTimeline>>(`/api/dashboard/campaigns/${campaignId}/timeline`),
+        ])
       const c = campaignResp.data.data
       setCampaign(c)
       setTemplate(templatesResp.data.data.find((t) => t.id === c.template_id) ?? null)
       setGroup(groupsResp.data.data.find((g) => g.id === c.target_group_id) ?? null)
       setTargets(targetsResp.data.data.targets)
+      setMetrics(metricsResp.data.data)
+      setTimeline(timelineResp.data.data)
     } catch (err) {
       setError(errorMessage(err, 'Failed to load the campaign.'))
     }
@@ -117,6 +133,20 @@ export function CampaignDetail() {
       setLaunchError(errorMessage(err, 'Launch failed.'))
     } finally {
       setLaunching(false)
+    }
+  }
+
+  async function confirmComplete() {
+    setCompleting(true)
+    setCompleteError(null)
+    try {
+      await api.post<ApiEnvelope<Campaign>>(`/api/campaigns/${campaignId}/complete`)
+      setCompleteOpen(false)
+      await fetchDetail()
+    } catch (err) {
+      setCompleteError(errorMessage(err, 'Could not complete campaign.'))
+    } finally {
+      setCompleting(false)
     }
   }
 
@@ -182,24 +212,40 @@ export function CampaignDetail() {
           </p>
         </div>
 
-        <Button
-          className="gap-2"
-          disabled={!canLaunch}
-          title={
-            alreadyLaunched
-              ? 'This campaign has already been launched.'
-              : targetCount === 0
-                ? 'The target group has no targets.'
-                : undefined
-          }
-          onClick={() => {
-            setLaunchError(null)
-            setConfirmOpen(true)
-          }}
-        >
-          <Rocket className="h-4 w-4" />
-          {alreadyLaunched ? 'Launched' : 'Launch Campaign'}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            className="gap-2"
+            disabled={!canLaunch}
+            title={
+              alreadyLaunched
+                ? 'This campaign has already been launched.'
+                : targetCount === 0
+                  ? 'The target group has no targets.'
+                  : undefined
+            }
+            onClick={() => {
+              setLaunchError(null)
+              setConfirmOpen(true)
+            }}
+          >
+            <Rocket className="h-4 w-4" />
+            {alreadyLaunched ? 'Launched' : 'Launch Campaign'}
+          </Button>
+
+          {campaign.status === 'running' && (
+            <Button
+              variant="outline"
+              className="gap-2"
+              onClick={() => {
+                setCompleteError(null)
+                setCompleteOpen(true)
+              }}
+            >
+              <Flag className="h-4 w-4" />
+              Mark as Completed
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Post-launch summary banner */}
@@ -227,6 +273,13 @@ export function CampaignDetail() {
           ) : null}
         </div>
       ) : null}
+
+      {/* Per-campaign charts — only shown once the campaign is active */}
+      {campaign.status === 'running' || campaign.status === 'completed'
+        ? metrics && timeline
+            ? <CampaignCharts metrics={metrics} timeline={timeline} />
+            : <p className="text-sm text-muted-foreground">Loading metrics…</p>
+        : null}
 
       {/* Per-target results */}
       <Card>
@@ -290,26 +343,51 @@ export function CampaignDetail() {
 
       {/* Launch confirmation */}
       <Dialog open={confirmOpen} onOpenChange={(o) => !o && setConfirmOpen(false)}>
-        <DialogContent className="max-w-md">
+        <DialogContent className=”max-w-md”>
           <DialogHeader>
             <DialogTitle>Launch this campaign?</DialogTitle>
             <DialogDescription>
               This will send the simulated phishing email to all {targetCount} target
               {targetCount === 1 ? '' : 's'} in{' '}
-              <span className="font-medium">{group?.name}</span> via the Mailtrap
+              <span className=”font-medium”>{group?.name}</span> via the Mailtrap
               sandbox, and record a “sent” event for each. This cannot be undone.
             </DialogDescription>
           </DialogHeader>
           {launchError ? (
-            <p className="text-sm font-medium text-destructive">{launchError}</p>
+            <p className=”text-sm font-medium text-destructive”>{launchError}</p>
           ) : null}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirmOpen(false)} disabled={launching}>
+            <Button variant=”outline” onClick={() => setConfirmOpen(false)} disabled={launching}>
               Cancel
             </Button>
-            <Button className="gap-2" onClick={() => void confirmLaunch()} disabled={launching}>
-              <Rocket className="h-4 w-4" />
+            <Button className=”gap-2” onClick={() => void confirmLaunch()} disabled={launching}>
+              <Rocket className=”h-4 w-4” />
               {launching ? 'Launching…' : 'Launch now'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Complete confirmation */}
+      <Dialog open={completeOpen} onOpenChange={(o) => !o && setCompleteOpen(false)}>
+        <DialogContent className=”max-w-md”>
+          <DialogHeader>
+            <DialogTitle>Mark this campaign as completed?</DialogTitle>
+            <DialogDescription>
+              This will close the campaign and record the completion time. No further
+              events will be associated with it. This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          {completeError ? (
+            <p className=”text-sm font-medium text-destructive”>{completeError}</p>
+          ) : null}
+          <DialogFooter>
+            <Button variant=”outline” onClick={() => setCompleteOpen(false)} disabled={completing}>
+              Cancel
+            </Button>
+            <Button className=”gap-2” onClick={() => void confirmComplete()} disabled={completing}>
+              <Flag className=”h-4 w-4” />
+              {completing ? 'Completing…' : 'Mark as completed'}
             </Button>
           </DialogFooter>
         </DialogContent>

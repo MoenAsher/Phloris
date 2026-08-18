@@ -8,41 +8,24 @@ Business logic for launching (token minting, rendering, sending, event
 recording) lives in the service layer, not here, per the project conventions.
 """
 
-from datetime import datetime
-
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required
 
 from ..extensions import db
 from ..models import Campaign, CampaignStatus, Template, TargetGroup, SendingProfile
 from ..services.email_service import launch_campaign
+from ..utils.time import utcnow
 
 campaigns_bp = Blueprint("campaigns", __name__)
 
-# Statuses from which a campaign may still be launched. Launching a running or
-# completed campaign is refused to prevent a duplicate send to every target.
+# CampaignStatus.scheduled is retained here so any campaign already in that
+# state can still be launched. Scheduled auto-launch (cron → launch) is
+# documented as future work; the create/update API no longer accepts scheduled_at.
 LAUNCHABLE_STATUSES = {CampaignStatus.draft, CampaignStatus.scheduled}
 
 
 def _err(message: str, status: int):
     return jsonify({"error": message}), status
-
-
-def _parse_datetime(value):
-    """Parse an ISO-8601 string to a naive UTC datetime.
-
-    Returns (datetime|None, error|None). Accepts a trailing `Z` and drops any
-    timezone offset so stored values match the system's naive-UTC convention.
-    """
-    if value is None or value == "":
-        return None, None
-    try:
-        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
-    except ValueError:
-        return None, "scheduled_at must be an ISO-8601 datetime"
-    if parsed.tzinfo is not None:
-        parsed = parsed.astimezone(tz=None).replace(tzinfo=None)
-    return parsed, None
 
 
 @campaigns_bp.get("/campaigns")
@@ -82,19 +65,12 @@ def create_campaign():
     if sending_profile_id is not None and db.session.get(SendingProfile, sending_profile_id) is None:
         return _err("sending profile not found", 404)
 
-    scheduled_at, error = _parse_datetime(data.get("scheduled_at"))
-    if error:
-        return _err(error, 400)
-
     campaign = Campaign(
         name=name,
         template_id=template_id,
         target_group_id=target_group_id,
         sending_profile_id=sending_profile_id,
-        scheduled_at=scheduled_at,
-        status=(
-            CampaignStatus.scheduled if scheduled_at else CampaignStatus.draft
-        ),
+        status=CampaignStatus.draft,
     )
     db.session.add(campaign)
     db.session.commit()
@@ -132,14 +108,6 @@ def update_campaign(campaign_id):
         if pid is not None and db.session.get(SendingProfile, pid) is None:
             return _err("sending profile not found", 404)
         campaign.sending_profile_id = pid
-    if "scheduled_at" in data:
-        scheduled_at, error = _parse_datetime(data.get("scheduled_at"))
-        if error:
-            return _err(error, 400)
-        campaign.scheduled_at = scheduled_at
-        campaign.status = (
-            CampaignStatus.scheduled if scheduled_at else CampaignStatus.draft
-        )
 
     db.session.commit()
     return jsonify({"data": campaign.to_dict()}), 200
@@ -188,6 +156,23 @@ def launch(campaign_id):
         ),
         200,
     )
+
+
+@campaigns_bp.post("/campaigns/<int:campaign_id>/complete")
+@jwt_required()
+def complete_campaign(campaign_id):
+    campaign = db.session.get(Campaign, campaign_id)
+    if campaign is None:
+        return _err("campaign not found", 404)
+    if campaign.status is not CampaignStatus.running:
+        return _err(
+            f"only running campaigns can be completed (current status: '{campaign.status.value}')",
+            409,
+        )
+    campaign.status = CampaignStatus.completed
+    campaign.completed_at = utcnow()
+    db.session.commit()
+    return jsonify({"data": campaign.to_dict()}), 200
 
 
 @campaigns_bp.delete("/campaigns/<int:campaign_id>")

@@ -16,6 +16,9 @@ class EventType(enum.Enum):
     """The kind of behavioural event recorded for a target."""
 
     sent = "sent"
+    # Open-pixel tracking (1×1 image) is reserved for future work; this value
+    # is intentionally never recorded — none of the four behavioural metrics
+    # (click rate, report rate, time-to-click, time-to-report) depend on it.
     opened = "opened"
     clicked = "clicked"
     reported = "reported"
