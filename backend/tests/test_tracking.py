@@ -16,6 +16,7 @@ def launched(auth_client, baseline):
             "name": "Track",
             "template_id": baseline["easy_template_id"],
             "target_group_id": baseline["group_id"],
+            "sending_profile_id": baseline["profile_id"],
         },
     ).get_json()["data"]["id"]
     auth_client.post(f"/api/campaigns/{cid}/launch")

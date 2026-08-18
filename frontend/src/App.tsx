@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route } from 'react-router-dom'
 
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { AppLayout } from '@/components/layout/AppLayout'
@@ -8,8 +8,10 @@ import { Campaigns } from '@/pages/Campaigns'
 import { CampaignDetail } from '@/pages/CampaignDetail'
 import { Templates } from '@/pages/Templates'
 import { Targets } from '@/pages/Targets'
+import { SendingProfiles } from '@/pages/SendingProfiles'
 import { Feedback } from '@/pages/Feedback'
 import { Performance } from '@/pages/Performance'
+import { NotFound } from '@/pages/NotFound'
 
 export default function App() {
   return (
@@ -27,12 +29,13 @@ export default function App() {
           <Route path="/campaigns/:id" element={<CampaignDetail />} />
           <Route path="/templates" element={<Templates />} />
           <Route path="/targets" element={<Targets />} />
+          <Route path="/sending-profiles" element={<SendingProfiles />} />
         </Route>
       </Route>
 
-      {/* Unknown paths fall back to the dashboard (which redirects to /login
-          when unauthenticated). */}
-      <Route path="*" element={<Navigate to="/" replace />} />
+      {/* Unknown paths show a not-found state (accessible with or without a
+          session) rather than silently redirecting. */}
+      <Route path="*" element={<NotFound />} />
     </Routes>
   )
 }

@@ -23,6 +23,14 @@ from dotenv import load_dotenv
 # Load .env before importing the app config so env-derived settings are present.
 load_dotenv(os.path.join(os.path.dirname(__file__), os.pardir, ".env"))
 
+# Ensure a valid Fernet key is available for crypto.py (which reads the env var
+# at import time). The real .env key takes precedence; this fallback covers CI
+# and fresh dev checkouts where .env may not have the key yet.
+os.environ.setdefault(
+    "SMTP_ENCRYPTION_KEY",
+    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+)
+
 from app import create_app  # noqa: E402
 from app.config import Config, BASE_DIR  # noqa: E402
 from app.extensions import db  # noqa: E402
@@ -32,6 +40,7 @@ from app.models import (  # noqa: E402
     Difficulty,
     TargetGroup,
     Target,
+    SendingProfile,
     Campaign,
     CampaignStatus,
     Event,
@@ -141,6 +150,18 @@ def baseline(app, admin):
     One admin (from the `admin` fixture), two templates (easy + hard), one
     target group with three targets.
     """
+    profile = SendingProfile(
+        name="Test Profile",
+        smtp_host="sandbox.smtp.mailtrap.io",
+        smtp_port=2525,
+        smtp_username="test_user",
+        from_address="test@simulation.local",
+        use_tls=True,
+    )
+    profile.set_smtp_password("test_pass")
+    db.session.add(profile)
+    db.session.flush()
+
     easy = Template(
         name="Easy Bait",
         subject="You won!",
@@ -175,6 +196,7 @@ def baseline(app, admin):
         "hard_template_id": hard.id,
         "group_id": group.id,
         "target_ids": [t.id for t in targets],
+        "profile_id": profile.id,
     }
 
 

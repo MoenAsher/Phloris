@@ -28,6 +28,9 @@ class Campaign(db.Model):
     target_group_id = db.Column(
         db.Integer, db.ForeignKey("target_groups.id"), nullable=False
     )
+    sending_profile_id = db.Column(
+        db.Integer, db.ForeignKey("sending_profiles.id"), nullable=True, default=None
+    )
     status = db.Column(
         db.Enum(CampaignStatus), nullable=False, default=CampaignStatus.draft
     )
@@ -38,6 +41,7 @@ class Campaign(db.Model):
 
     template = db.relationship("Template", back_populates="campaigns")
     target_group = db.relationship("TargetGroup", back_populates="campaigns")
+    sending_profile = db.relationship("SendingProfile", back_populates="campaigns")
     # Deleting a campaign removes its events and tracking tokens.
     events = db.relationship(
         "Event", back_populates="campaign", cascade="all, delete-orphan"
@@ -52,6 +56,7 @@ class Campaign(db.Model):
             "name": self.name,
             "template_id": self.template_id,
             "target_group_id": self.target_group_id,
+            "sending_profile_id": self.sending_profile_id,
             "status": self.status.value,
             "scheduled_at": iso(self.scheduled_at),
             "launched_at": iso(self.launched_at),

@@ -25,6 +25,9 @@ dist-ssr/
 *.local
 .vite/
 
+# ---- Personal / local reference docs (may contain credentials) ----
+*.local.md
+
 # ---- Editors / OS ----
 .vscode/
 .idea/

@@ -1,7 +1,7 @@
-import { createContext, useContext, useState, useCallback } from 'react'
+import { createContext, useContext, useState, useCallback, useEffect } from 'react'
 import type { ReactNode } from 'react'
 
-import { api, setAuthToken } from '@/lib/api'
+import { api, setAuthToken, setUnauthorizedHandler } from '@/lib/api'
 import type { ApiEnvelope, LoginResponse, User } from '@/types'
 
 interface AuthState {
@@ -36,6 +36,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setToken(null)
     setUser(null)
   }, [])
+
+  // Let the Axios layer end the session when the backend rejects an
+  // authenticated call with 401 (expired/tampered token). Clearing the token
+  // makes ProtectedRoute redirect to /login.
+  useEffect(() => {
+    setUnauthorizedHandler(logout)
+    return () => setUnauthorizedHandler(null)
+  }, [logout])
 
   return (
     <AuthContext.Provider

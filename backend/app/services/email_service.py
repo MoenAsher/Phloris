@@ -4,8 +4,8 @@ This service owns the send flow for `POST /api/campaigns/:id/launch`:
 
     1. Load the campaign, its template, and every target in the target group.
     2. For each target: mint an opaque token, build the click/report URLs,
-       render the template body, send the mail through Mailtrap, and record a
-       `sent` Event.
+       render the template body, send via the campaign's SendingProfile SMTP
+       config, and record a `sent` Event.
     3. Flip the campaign to `running` and stamp `launched_at`.
 
 Ethical safeguards (Section 11) are enforced here by construction:
@@ -18,9 +18,14 @@ Ethical safeguards (Section 11) are enforced here by construction:
 
 from __future__ import annotations
 
+import smtplib
+import ssl
 import time
 from dataclasses import dataclass, field
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
+from cryptography.fernet import InvalidToken
 from flask import current_app
 from flask_mail import Message
 
@@ -47,8 +52,14 @@ def launch_campaign(campaign: Campaign) -> LaunchResult:
     campaign is promoted to `running` only if at least one email was sent.
 
     Assumes the caller has already validated that the campaign is launchable
-    (draft/scheduled) and that its target group is non-empty.
+    (draft/scheduled), that its target group is non-empty, and that a sending
+    profile is assigned.
     """
+    if campaign.sending_profile is None:
+        raise RuntimeError(
+            f"campaign {campaign.id} has no sending profile assigned"
+        )
+
     template = campaign.template
     targets = campaign.target_group.targets
     base_url = current_app.config["TRACKING_BASE_URL"].rstrip("/")
@@ -74,7 +85,7 @@ def launch_campaign(campaign: Campaign) -> LaunchResult:
         )
 
         try:
-            _send_email(subject, target.email, body_html)
+            _send_email(subject, target.email, body_html, campaign.sending_profile)
         except Exception as exc:  # noqa: BLE001 - surface any SMTP failure per target
             result.failed.append(
                 {"target_id": target.id, "email": target.email, "error": str(exc)}
@@ -127,11 +138,57 @@ def _render(text: str, target, tracking_link: str, report_link: str) -> str:
     )
 
 
-def _send_email(subject: str, recipient: str, html_body: str) -> None:
-    """Send a single HTML email via Flask-Mail (Mailtrap sandbox).
+def _send_email(subject: str, recipient: str, html_body: str, profile) -> None:
+    """Send a single HTML email using the campaign's assigned sending profile."""
+    _send_via_profile(subject, recipient, html_body, profile)
 
-    The sender is taken from `MAIL_DEFAULT_SENDER`. Raises on SMTP failure so
-    the caller can record the failure per target.
+
+def _send_via_profile(
+    subject: str,
+    recipient: str,
+    html_body: str,
+    profile,
+) -> None:
+    """Send a message using the profile's SMTP settings.
+
+    In test mode (MAIL_SUPPRESS_SEND=True) the message is routed through
+    Flask-Mail's suppressed send so mail.record_messages() outboxes remain
+    populated and no real SMTP connection is opened.
     """
-    message = Message(subject=subject, recipients=[recipient], html=html_body)
-    mail.send(message)
+    if current_app.config.get("MAIL_SUPPRESS_SEND", False):
+        msg = Message(
+            subject=subject,
+            sender=profile.from_address,
+            recipients=[recipient],
+            html=html_body,
+        )
+        mail.send(msg)
+        return
+
+    try:
+        password = profile.get_smtp_password()
+    except (RuntimeError, InvalidToken) as exc:
+        raise RuntimeError(
+            f"cannot decrypt SMTP password for profile {profile.id}: {exc}"
+        ) from exc
+
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = subject
+    msg["From"] = profile.from_address
+    msg["To"] = recipient
+    msg.attach(MIMEText(html_body, "html"))
+
+    if profile.use_tls and profile.smtp_port == 465:
+        context = ssl.create_default_context()
+        server = smtplib.SMTP_SSL(profile.smtp_host, profile.smtp_port, context=context, timeout=30)
+    else:
+        server = smtplib.SMTP(profile.smtp_host, profile.smtp_port, timeout=30)
+        if profile.use_tls:
+            server.starttls(context=ssl.create_default_context())
+
+    try:
+        if profile.smtp_username and password:
+            server.login(profile.smtp_username, password)
+        server.sendmail(profile.from_address, [recipient], msg.as_string())
+    finally:
+        server.quit()

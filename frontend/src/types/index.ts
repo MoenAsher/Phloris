@@ -63,11 +63,24 @@ export interface ImportResult {
   targets: Target[]
 }
 
+export interface SendingProfile {
+  id: number
+  name: string
+  smtp_host: string
+  smtp_port: number
+  smtp_username: string | null
+  from_address: string
+  use_tls: boolean
+  has_password: boolean
+  created_at: string
+}
+
 export interface Campaign {
   id: number
   name: string
   template_id: number
   target_group_id: number
+  sending_profile_id: number | null
   status: CampaignStatus
   scheduled_at: string | null
   launched_at: string | null

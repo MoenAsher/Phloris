@@ -15,6 +15,7 @@ from .tracking import tracking_bp
 from .dashboard import dashboard_bp
 from .performance import performance_bp
 from .feedback import feedback_bp
+from .sending_profiles import sending_profiles_bp
 
 
 def register_blueprints(app: Flask) -> None:
@@ -30,3 +31,4 @@ def register_blueprints(app: Flask) -> None:
     app.register_blueprint(feedback_bp, url_prefix="/api")
     # Public tracking endpoints live at the root (/track/..., /report), not /api.
     app.register_blueprint(tracking_bp)
+    app.register_blueprint(sending_profiles_bp, url_prefix="/api")

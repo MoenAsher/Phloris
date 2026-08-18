@@ -4,6 +4,7 @@ import {
   Send,
   FileText,
   Users,
+  Server,
   LogOut,
   ShieldAlert,
 } from 'lucide-react'
@@ -17,6 +18,7 @@ const NAV_ITEMS = [
   { to: '/campaigns', label: 'Campaigns', icon: Send, end: false },
   { to: '/templates', label: 'Templates', icon: FileText, end: false },
   { to: '/targets', label: 'Targets', icon: Users, end: false },
+  { to: '/sending-profiles', label: 'Sending Profiles', icon: Server, end: false },
 ]
 
 /** Admin app shell: a fixed shadcn-styled sidebar plus the routed page area. */

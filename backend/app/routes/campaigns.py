@@ -14,7 +14,7 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required
 
 from ..extensions import db
-from ..models import Campaign, CampaignStatus, Template, TargetGroup
+from ..models import Campaign, CampaignStatus, Template, TargetGroup, SendingProfile
 from ..services.email_service import launch_campaign
 
 campaigns_bp = Blueprint("campaigns", __name__)
@@ -78,6 +78,10 @@ def create_campaign():
     if db.session.get(TargetGroup, target_group_id) is None:
         return _err("target group not found", 404)
 
+    sending_profile_id = data.get("sending_profile_id")
+    if sending_profile_id is not None and db.session.get(SendingProfile, sending_profile_id) is None:
+        return _err("sending profile not found", 404)
+
     scheduled_at, error = _parse_datetime(data.get("scheduled_at"))
     if error:
         return _err(error, 400)
@@ -86,6 +90,7 @@ def create_campaign():
         name=name,
         template_id=template_id,
         target_group_id=target_group_id,
+        sending_profile_id=sending_profile_id,
         scheduled_at=scheduled_at,
         status=(
             CampaignStatus.scheduled if scheduled_at else CampaignStatus.draft
@@ -122,6 +127,11 @@ def update_campaign(campaign_id):
         if db.session.get(TargetGroup, data["target_group_id"]) is None:
             return _err("target group not found", 404)
         campaign.target_group_id = data["target_group_id"]
+    if "sending_profile_id" in data:
+        pid = data.get("sending_profile_id")
+        if pid is not None and db.session.get(SendingProfile, pid) is None:
+            return _err("sending profile not found", 404)
+        campaign.sending_profile_id = pid
     if "scheduled_at" in data:
         scheduled_at, error = _parse_datetime(data.get("scheduled_at"))
         if error:
@@ -148,6 +158,8 @@ def launch(campaign_id):
         )
     if not campaign.target_group.targets:
         return _err("target group has no targets to send to", 400)
+    if campaign.sending_profile_id is None:
+        return _err("assign a sending profile to this campaign before launching", 422)
 
     result = launch_campaign(campaign)
 

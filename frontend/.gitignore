@@ -12,6 +12,15 @@ dist
 dist-ssr
 *.local
 
+# E2E test suite — kept local: specs hardcode the dev admin credentials
+/e2e/
+
+# Test artifacts (Playwright / Vitest)
+/test-results/
+/playwright-report/
+/playwright/.cache/
+/e2e-results.json
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

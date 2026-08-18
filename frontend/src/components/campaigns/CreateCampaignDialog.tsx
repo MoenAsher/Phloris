@@ -3,7 +3,7 @@ import type { FormEvent } from 'react'
 import { isAxiosError } from 'axios'
 
 import { api } from '@/lib/api'
-import type { ApiEnvelope, Campaign, Template, TargetGroup } from '@/types'
+import type { ApiEnvelope, Campaign, SendingProfile, Template, TargetGroup } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -24,17 +24,20 @@ export function CreateCampaignDialog({
   onOpenChange,
   templates,
   groups,
+  profiles,
   onCreated,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   templates: Template[]
   groups: TargetGroup[]
+  profiles: SendingProfile[]
   onCreated: (campaign: Campaign) => void
 }) {
   const [name, setName] = useState('')
   const [templateId, setTemplateId] = useState('')
   const [groupId, setGroupId] = useState('')
+  const [profileId, setProfileId] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
@@ -45,9 +48,10 @@ export function CreateCampaignDialog({
     setError(null)
     setTemplateId(templates[0] ? String(templates[0].id) : '')
     setGroupId(groups[0] ? String(groups[0].id) : '')
-  }, [open, templates, groups])
+    setProfileId(profiles[0] ? String(profiles[0].id) : '')
+  }, [open, templates, groups, profiles])
 
-  const missingPrereqs = templates.length === 0 || groups.length === 0
+  const missingPrereqs = templates.length === 0 || groups.length === 0 || profiles.length === 0
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -58,6 +62,7 @@ export function CreateCampaignDialog({
         name: name.trim(),
         template_id: Number(templateId),
         target_group_id: Number(groupId),
+        sending_profile_id: Number(profileId),
       })
       onCreated(resp.data.data)
       onOpenChange(false)
@@ -87,10 +92,11 @@ export function CreateCampaignDialog({
 
         {missingPrereqs ? (
           <div className="space-y-2 py-2 text-sm text-muted-foreground">
-            <p>You need at least one template and one target group first.</p>
+            <p>You need at least one template, one target group, and one sending profile first.</p>
             <ul className="list-disc pl-5">
               {templates.length === 0 ? <li>No templates yet — create one on the Templates page.</li> : null}
               {groups.length === 0 ? <li>No target groups yet — create one on the Targets page.</li> : null}
+              {profiles.length === 0 ? <li>No sending profiles yet — create one on the Sending Profiles page.</li> : null}
             </ul>
             <DialogFooter>
               <Button variant="outline" onClick={() => onOpenChange(false)}>
@@ -140,6 +146,21 @@ export function CreateCampaignDialog({
                 ))}
               </select>
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="camp-profile">Sending profile</Label>
+              <select
+                id="camp-profile"
+                className={SELECT_CLASS}
+                value={profileId}
+                onChange={(e) => setProfileId(e.target.value)}
+              >
+                {profiles.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} ({p.smtp_host}:{p.smtp_port})
+                  </option>
+                ))}
+              </select>
+            </div>
             {error ? (
               <p className="text-sm font-medium text-destructive">{error}</p>
             ) : null}
@@ -147,7 +168,7 @@ export function CreateCampaignDialog({
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={saving || name.trim() === '' || !templateId || !groupId}>
+              <Button type="submit" disabled={saving || name.trim() === '' || !templateId || !groupId || !profileId}>
                 {saving ? 'Creating…' : 'Create campaign'}
               </Button>
             </DialogFooter>

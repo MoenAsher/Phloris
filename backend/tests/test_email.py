@@ -14,10 +14,15 @@ from app.models import Target, Event, EventType, TrackingToken
 URL_SAFE = re.compile(r"^[A-Za-z0-9_-]+$")
 
 
-def _launch_capture(auth_client, template_id, group_id):
+def _launch_capture(auth_client, template_id, group_id, profile_id):
     cid = auth_client.post(
         "/api/campaigns",
-        json={"name": "Pipeline", "template_id": template_id, "target_group_id": group_id},
+        json={
+            "name": "Pipeline",
+            "template_id": template_id,
+            "target_group_id": group_id,
+            "sending_profile_id": profile_id,
+        },
     ).get_json()["data"]["id"]
     with mail.record_messages() as outbox:
         launch = auth_client.post(f"/api/campaigns/{cid}/launch")
@@ -26,7 +31,7 @@ def _launch_capture(auth_client, template_id, group_id):
 
 def test_7_1_three_emails_sent(auth_client, baseline):
     _, outbox, launch = _launch_capture(
-        auth_client, baseline["hard_template_id"], baseline["group_id"]
+        auth_client, baseline["hard_template_id"], baseline["group_id"], baseline["profile_id"]
     )
     assert launch.status_code == 200
     assert len(outbox) == 3
@@ -34,7 +39,7 @@ def test_7_1_three_emails_sent(auth_client, baseline):
 
 def test_7_2_to_7_4_personalisation_and_links(auth_client, baseline):
     cid, outbox, _ = _launch_capture(
-        auth_client, baseline["hard_template_id"], baseline["group_id"]
+        auth_client, baseline["hard_template_id"], baseline["group_id"], baseline["profile_id"]
     )
     db.session.rollback()
     tokens = {
@@ -64,7 +69,7 @@ def test_7_2_to_7_4_personalisation_and_links(auth_client, baseline):
 
 def test_7_5_sent_event_per_target(auth_client, baseline):
     cid, _, _ = _launch_capture(
-        auth_client, baseline["easy_template_id"], baseline["group_id"]
+        auth_client, baseline["easy_template_id"], baseline["group_id"], baseline["profile_id"]
     )
     db.session.rollback()
     sent = Event.query.filter_by(campaign_id=cid, event_type=EventType.sent).all()
@@ -74,7 +79,7 @@ def test_7_5_sent_event_per_target(auth_client, baseline):
 
 def test_7_6_unique_token_per_target(auth_client, baseline):
     cid, _, _ = _launch_capture(
-        auth_client, baseline["easy_template_id"], baseline["group_id"]
+        auth_client, baseline["easy_template_id"], baseline["group_id"], baseline["profile_id"]
     )
     db.session.rollback()
     tokens = TrackingToken.query.filter_by(campaign_id=cid).all()
@@ -89,7 +94,7 @@ def test_7_6_unique_token_per_target(auth_client, baseline):
 
 def test_7_7_tokens_opaque_no_pii(auth_client, baseline):
     cid, _, _ = _launch_capture(
-        auth_client, baseline["hard_template_id"], baseline["group_id"]
+        auth_client, baseline["hard_template_id"], baseline["group_id"], baseline["profile_id"]
     )
     db.session.rollback()
     targets = {

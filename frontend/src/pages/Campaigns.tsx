@@ -4,7 +4,7 @@ import { isAxiosError } from 'axios'
 import { Plus, Loader2, ArrowRight } from 'lucide-react'
 
 import { api } from '@/lib/api'
-import type { ApiEnvelope, Campaign, Template, TargetGroup } from '@/types'
+import type { ApiEnvelope, Campaign, SendingProfile, Template, TargetGroup } from '@/types'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -30,20 +30,23 @@ export function Campaigns() {
   const [campaigns, setCampaigns] = useState<Campaign[] | null>(null)
   const [templates, setTemplates] = useState<Template[]>([])
   const [groups, setGroups] = useState<TargetGroup[]>([])
+  const [profiles, setProfiles] = useState<SendingProfile[]>([])
   const [error, setError] = useState<string | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
 
   const fetchAll = useCallback(async () => {
     setError(null)
     try {
-      const [campaignsResp, templatesResp, groupsResp] = await Promise.all([
+      const [campaignsResp, templatesResp, groupsResp, profilesResp] = await Promise.all([
         api.get<ApiEnvelope<Campaign[]>>('/api/campaigns'),
         api.get<ApiEnvelope<Template[]>>('/api/templates'),
         api.get<ApiEnvelope<TargetGroup[]>>('/api/target-groups'),
+        api.get<ApiEnvelope<SendingProfile[]>>('/api/sending-profiles'),
       ])
       setCampaigns(campaignsResp.data.data)
       setTemplates(templatesResp.data.data)
       setGroups(groupsResp.data.data)
+      setProfiles(profilesResp.data.data)
     } catch (err) {
       setCampaigns([])
       if (isAxiosError(err) && err.response?.data?.error) {
@@ -170,6 +173,7 @@ export function Campaigns() {
         onOpenChange={setCreateOpen}
         templates={templates}
         groups={groups}
+        profiles={profiles}
         onCreated={(campaign) => navigate(`/campaigns/${campaign.id}`)}
       />
     </div>

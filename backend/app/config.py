@@ -69,6 +69,15 @@ class Config:
     # the default spaces sends out to avoid tripping it. Set to 0 for a
     # production SMTP provider with higher throughput.
     MAIL_SEND_DELAY = float(os.environ.get("MAIL_SEND_DELAY", "1.0"))
+    # When true, Flask-Mail records outgoing messages but does not transmit
+    # them over SMTP. Off by default (real sandbox delivery); enable via env in
+    # automated tests so the full launch pipeline runs without depending on the
+    # third-party provider's rate limit.
+    MAIL_SUPPRESS_SEND = _as_bool(os.environ.get("MAIL_SUPPRESS_SEND"), default=False)
+
+    # Sending Profile — Fernet key for encrypting SMTP passwords at rest.
+    # Generate once: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    SMTP_ENCRYPTION_KEY = os.environ.get("SMTP_ENCRYPTION_KEY", "")
 
     # Tracking / CORS
     TRACKING_BASE_URL = os.environ.get("TRACKING_BASE_URL", "http://localhost:5001")

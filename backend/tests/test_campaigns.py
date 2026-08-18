@@ -4,10 +4,15 @@ from app.extensions import db
 from app.models import Campaign, Event, TrackingToken
 
 
-def _create_campaign(auth_client, template_id, group_id, name="Camp"):
+def _create_campaign(auth_client, template_id, group_id, name="Camp", profile_id=None):
     return auth_client.post(
         "/api/campaigns",
-        json={"name": name, "template_id": template_id, "target_group_id": group_id},
+        json={
+            "name": name,
+            "template_id": template_id,
+            "target_group_id": group_id,
+            "sending_profile_id": profile_id,
+        },
     )
 
 
@@ -61,7 +66,8 @@ def test_6_5_update_draft(auth_client, baseline):
 def test_6_6_launch_draft(auth_client, baseline):
     """6.6 Launch a valid draft -> 200; status running; launched_at set."""
     cid = _create_campaign(
-        auth_client, baseline["easy_template_id"], baseline["group_id"]
+        auth_client, baseline["easy_template_id"], baseline["group_id"],
+        profile_id=baseline["profile_id"],
     ).get_json()["data"]["id"]
     resp = auth_client.post(f"/api/campaigns/{cid}/launch")
     assert resp.status_code == 200
@@ -91,7 +97,8 @@ def test_6_7_launch_empty_group(auth_client):
 def test_6_8_launch_already_running(auth_client, baseline):
     """6.8 Launching an already-running campaign is rejected; no duplicate sends."""
     cid = _create_campaign(
-        auth_client, baseline["easy_template_id"], baseline["group_id"]
+        auth_client, baseline["easy_template_id"], baseline["group_id"],
+        profile_id=baseline["profile_id"],
     ).get_json()["data"]["id"]
     first = auth_client.post(f"/api/campaigns/{cid}/launch")
     assert first.status_code == 200
@@ -108,7 +115,8 @@ def test_6_8_launch_already_running(auth_client, baseline):
 def test_6_9_delete_cascades_events_and_tokens(auth_client, baseline):
     """6.9 Deleting a campaign removes its events and tracking tokens."""
     cid = _create_campaign(
-        auth_client, baseline["easy_template_id"], baseline["group_id"]
+        auth_client, baseline["easy_template_id"], baseline["group_id"],
+        profile_id=baseline["profile_id"],
     ).get_json()["data"]["id"]
     auth_client.post(f"/api/campaigns/{cid}/launch")
     db.session.rollback()

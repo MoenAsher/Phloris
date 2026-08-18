@@ -9,6 +9,7 @@ from ..extensions import db
 from .user import User
 from .template import Template, Difficulty
 from .target import TargetGroup, Target
+from .sending_profile import SendingProfile
 from .campaign import Campaign, CampaignStatus
 from .event import Event, EventType
 from .tracking_token import TrackingToken
@@ -20,6 +21,7 @@ __all__ = [
     "Difficulty",
     "TargetGroup",
     "Target",
+    "SendingProfile",
     "Campaign",
     "CampaignStatus",
     "Event",

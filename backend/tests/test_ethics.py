@@ -56,11 +56,15 @@ def test_12_1_no_credential_capture(app):
         for bad in ("credential", "harvest", "passwords"):
             assert bad not in lowered
 
-    # The only table with a password column is `users` (hashed admin creds).
+    # The only tables with a password column are:
+    #   users            — hashed admin login credentials (Werkzeug PBKDF2)
+    #   sending_profiles — encrypted SMTP credentials for admin-configured providers
+    #                      (Fernet AES-128-CBC; never recipient-harvested data)
+    ALLOWED_PASSWORD_TABLES = {"users", "sending_profiles"}
     for table in db.metadata.tables.values():
         for column in table.columns:
             if "password" in column.name.lower():
-                assert table.name == "users"
+                assert table.name in ALLOWED_PASSWORD_TABLES
 
 
 def test_12_2_event_stores_only_type_timestamp_linkage():
@@ -101,11 +105,14 @@ def test_12_5_tokens_opaque_and_random():
 
 
 def test_12_6_delivery_only_via_mailtrap_sandbox():
-    """12.6 Current config routes all email through the Mailtrap sandbox only."""
+    """12.6 Default config routes email through Mailtrap sandbox; smtplib is
+    used only in the email service for user-configured sending profiles and
+    never in tracking, performance, or credential-adjacent routes."""
     assert "mailtrap.io" in Config.MAIL_SERVER
 
-    # Email is sent exclusively through Flask-Mail; no raw SMTP path exists.
-    services = _read_sources("services")
-    for text in services.values():
-        assert "smtplib" not in text
-    assert "mail.send" in services["services/email_service.py"]
+    # smtplib is intentionally present in the email service for sending profiles,
+    # but must not appear in public tracking or performance routes (where it would
+    # indicate an unexpected data-exfiltration path).
+    routes = _read_sources("routes")
+    assert "smtplib" not in routes["routes/tracking.py"]
+    assert "smtplib" not in routes["routes/performance.py"]
