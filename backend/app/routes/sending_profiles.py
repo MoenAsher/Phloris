@@ -16,6 +16,8 @@ import ssl
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
+import certifi
+
 from cryptography.fernet import InvalidToken
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import get_jwt_identity, jwt_required
@@ -249,12 +251,12 @@ def _smtp_send(
       - use_tls=False            → plaintext (internal relays only)
     """
     if use_tls and port == 465:
-        context = ssl.create_default_context()
+        context = ssl.create_default_context(cafile=certifi.where())
         server = smtplib.SMTP_SSL(host, port, context=context, timeout=15)
     else:
         server = smtplib.SMTP(host, port, timeout=15)
         if use_tls:
-            server.starttls(context=ssl.create_default_context())
+            server.starttls(context=ssl.create_default_context(cafile=certifi.where()))
 
     try:
         if username and password:

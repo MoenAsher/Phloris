@@ -343,25 +343,25 @@ export function CampaignDetail() {
 
       {/* Launch confirmation */}
       <Dialog open={confirmOpen} onOpenChange={(o) => !o && setConfirmOpen(false)}>
-        <DialogContent className=”max-w-md”>
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Launch this campaign?</DialogTitle>
             <DialogDescription>
               This will send the simulated phishing email to all {targetCount} target
               {targetCount === 1 ? '' : 's'} in{' '}
-              <span className=”font-medium”>{group?.name}</span> via the Mailtrap
-              sandbox, and record a “sent” event for each. This cannot be undone.
+              <span className="font-medium">{group?.name}</span> via the Mailtrap
+              sandbox, and record a "sent" event for each. This cannot be undone.
             </DialogDescription>
           </DialogHeader>
           {launchError ? (
-            <p className=”text-sm font-medium text-destructive”>{launchError}</p>
+            <p className="text-sm font-medium text-destructive">{launchError}</p>
           ) : null}
           <DialogFooter>
-            <Button variant=”outline” onClick={() => setConfirmOpen(false)} disabled={launching}>
+            <Button variant="outline" onClick={() => setConfirmOpen(false)} disabled={launching}>
               Cancel
             </Button>
-            <Button className=”gap-2” onClick={() => void confirmLaunch()} disabled={launching}>
-              <Rocket className=”h-4 w-4” />
+            <Button className="gap-2" onClick={() => void confirmLaunch()} disabled={launching}>
+              <Rocket className="h-4 w-4" />
               {launching ? 'Launching…' : 'Launch now'}
             </Button>
           </DialogFooter>
@@ -370,7 +370,7 @@ export function CampaignDetail() {
 
       {/* Complete confirmation */}
       <Dialog open={completeOpen} onOpenChange={(o) => !o && setCompleteOpen(false)}>
-        <DialogContent className=”max-w-md”>
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Mark this campaign as completed?</DialogTitle>
             <DialogDescription>
@@ -379,14 +379,14 @@ export function CampaignDetail() {
             </DialogDescription>
           </DialogHeader>
           {completeError ? (
-            <p className=”text-sm font-medium text-destructive”>{completeError}</p>
+            <p className="text-sm font-medium text-destructive">{completeError}</p>
           ) : null}
           <DialogFooter>
-            <Button variant=”outline” onClick={() => setCompleteOpen(false)} disabled={completing}>
+            <Button variant="outline" onClick={() => setCompleteOpen(false)} disabled={completing}>
               Cancel
             </Button>
-            <Button className=”gap-2” onClick={() => void confirmComplete()} disabled={completing}>
-              <Flag className=”h-4 w-4” />
+            <Button className="gap-2" onClick={() => void confirmComplete()} disabled={completing}>
+              <Flag className="h-4 w-4" />
               {completing ? 'Completing…' : 'Mark as completed'}
             </Button>
           </DialogFooter>

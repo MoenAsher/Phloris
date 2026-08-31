@@ -21,6 +21,8 @@ from __future__ import annotations
 import smtplib
 import ssl
 import time
+
+import certifi
 from dataclasses import dataclass, field
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -179,12 +181,12 @@ def _send_via_profile(
     msg.attach(MIMEText(html_body, "html"))
 
     if profile.use_tls and profile.smtp_port == 465:
-        context = ssl.create_default_context()
+        context = ssl.create_default_context(cafile=certifi.where())
         server = smtplib.SMTP_SSL(profile.smtp_host, profile.smtp_port, context=context, timeout=30)
     else:
         server = smtplib.SMTP(profile.smtp_host, profile.smtp_port, timeout=30)
         if profile.use_tls:
-            server.starttls(context=ssl.create_default_context())
+            server.starttls(context=ssl.create_default_context(cafile=certifi.where()))
 
     try:
         if profile.smtp_username and password:
