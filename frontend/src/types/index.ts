@@ -2,7 +2,7 @@
  *  Sections 6 & 7). All admin API responses are wrapped in `{ "data": ... }`. */
 
 export type Difficulty = 'easy' | 'medium' | 'hard'
-export type CampaignStatus = 'draft' | 'running' | 'completed'
+export type CampaignStatus = 'draft' | 'scheduled' | 'running' | 'completed'
 export type EventType = 'sent' | 'opened' | 'clicked' | 'reported'
 
 /** Standard success envelope used by the backend. */

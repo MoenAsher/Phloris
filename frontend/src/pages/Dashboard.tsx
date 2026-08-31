@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
 import { isAxiosError } from 'axios'
-import { Loader2 } from 'lucide-react'
 
 import { api } from '@/lib/api'
 import { formatPercent } from '@/lib/format'
@@ -19,6 +18,7 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
 import { CampaignCharts } from '@/components/campaigns/CampaignCharts'
 
 function errorMessage(err: unknown, fallback: string): string {
@@ -40,6 +40,36 @@ function StatCard({ label, value, hint }: { label: string; value: string; hint?:
         </CardContent>
       ) : null}
     </Card>
+  )
+}
+
+function OverviewSkeletons() {
+  return (
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {Array.from({ length: 4 }).map((_, i) => (
+        <Card key={i}>
+          <CardHeader className="pb-2">
+            <Skeleton className="h-3 w-24" />
+            <Skeleton className="mt-2 h-8 w-16" />
+          </CardHeader>
+          <CardContent>
+            <Skeleton className="h-3 w-28" />
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  )
+}
+
+function MetricsSkeletons() {
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-4 md:grid-cols-2">
+        <Skeleton className="h-52" />
+        <Skeleton className="h-52" />
+      </div>
+      <Skeleton className="h-52" />
+    </div>
   )
 }
 
@@ -88,7 +118,6 @@ export function Dashboard() {
     void fetchTop()
   }, [fetchTop])
 
-  // Default to the first campaign once the list loads.
   useEffect(() => {
     if (campaigns === null) return
     setSelectedId((cur) =>
@@ -119,10 +148,7 @@ export function Dashboard() {
           </Button>
         </div>
       ) : overview === null ? (
-        <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          Loading overview…
-        </div>
+        <OverviewSkeletons />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard label="Total Campaigns" value={String(overview.total_campaigns)} />
@@ -181,13 +207,10 @@ export function Dashboard() {
                 </Button>
               </div>
             ) : metrics === null || timeline === null ? (
-              <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Loading metrics…
-              </div>
+              <MetricsSkeletons />
             ) : metrics.sent_count === 0 ? (
               <div className="py-10 text-center text-sm text-muted-foreground">
-                This campaign has no activity yet — launch it to record “sent” events
+                This campaign has no activity yet — launch it to record "sent" events
                 and start collecting metrics.
               </div>
             ) : (
@@ -199,4 +222,3 @@ export function Dashboard() {
     </div>
   )
 }
-

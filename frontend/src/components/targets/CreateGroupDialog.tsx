@@ -28,20 +28,26 @@ export function CreateGroupDialog({
 }) {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
-  const [error, setError] = useState<string | null>(null)
+  const [nameTouched, setNameTouched] = useState(false)
+  const [serverError, setServerError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     if (open) {
       setName('')
       setDescription('')
-      setError(null)
+      setNameTouched(false)
+      setServerError(null)
     }
   }, [open])
 
+  const nameError = nameTouched && name.trim() === '' ? 'Group name is required' : null
+
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    setError(null)
+    setNameTouched(true)
+    if (name.trim() === '') return
+    setServerError(null)
     setSaving(true)
     try {
       const resp = await api.post<ApiEnvelope<TargetGroup>>('/api/target-groups', {
@@ -52,11 +58,11 @@ export function CreateGroupDialog({
       onOpenChange(false)
     } catch (err) {
       if (isAxiosError(err) && err.response?.data?.error) {
-        setError(String(err.response.data.error))
+        setServerError(String(err.response.data.error))
       } else if (isAxiosError(err) && err.request) {
-        setError('Cannot reach the backend. Is it running on port 5001?')
+        setServerError('Cannot reach the backend. Is it running on port 5001?')
       } else {
-        setError('Failed to create the group.')
+        setServerError('Failed to create the group.')
       }
     } finally {
       setSaving(false)
@@ -72,16 +78,20 @@ export function CreateGroupDialog({
             A named collection of recipients for campaigns.
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} noValidate className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="grp-name">Name</Label>
             <Input
               id="grp-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
+              onBlur={() => setNameTouched(true)}
               placeholder="e.g. Finance Dept"
-              required
+              aria-invalid={!!nameError}
             />
+            {nameError ? (
+              <p className="text-xs font-medium text-destructive">{nameError}</p>
+            ) : null}
           </div>
           <div className="space-y-2">
             <Label htmlFor="grp-desc">Description (optional)</Label>
@@ -93,14 +103,14 @@ export function CreateGroupDialog({
               className="min-h-[70px]"
             />
           </div>
-          {error ? (
-            <p className="text-sm font-medium text-destructive">{error}</p>
+          {serverError ? (
+            <p className="text-sm font-medium text-destructive">{serverError}</p>
           ) : null}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={saving || name.trim() === ''}>
+            <Button type="submit" disabled={saving}>
               {saving ? 'Creating…' : 'Create group'}
             </Button>
           </DialogFooter>

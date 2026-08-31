@@ -16,29 +16,54 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+function emailError(email: string, touched: boolean): string | null {
+  if (!touched) return null
+  if (!email) return 'Email is required'
+  if (!EMAIL_RE.test(email)) return 'Enter a valid email address'
+  return null
+}
+
+function passwordError(password: string, touched: boolean): string | null {
+  if (!touched) return null
+  if (!password) return 'Password is required'
+  return null
+}
+
 export function Login() {
   const { login } = useAuth()
   const navigate = useNavigate()
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [error, setError] = useState<string | null>(null)
+  const [touched, setTouched] = useState({ email: false, password: false })
+  const [serverError, setServerError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+
+  const emailErr = emailError(email, touched.email)
+  const passwordErr = passwordError(password, touched.password)
+
+  function touch(field: 'email' | 'password') {
+    setTouched((t) => ({ ...t, [field]: true }))
+  }
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    setError(null)
+    setTouched({ email: true, password: true })
+    if (!email || !EMAIL_RE.test(email) || !password) return
+    setServerError(null)
     setLoading(true)
     try {
       await login(email, password)
       navigate('/', { replace: true })
     } catch (err) {
       if (isAxiosError(err) && err.response?.data?.error) {
-        setError(String(err.response.data.error))
+        setServerError(String(err.response.data.error))
       } else if (isAxiosError(err) && err.request) {
-        setError('Cannot reach the backend. Is it running on port 5001?')
+        setServerError('Cannot reach the backend. Is it running on port 5001?')
       } else {
-        setError('Login failed. Please try again.')
+        setServerError('Login failed. Please try again.')
       }
     } finally {
       setLoading(false)
@@ -59,7 +84,7 @@ export function Login() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} noValidate className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
@@ -69,8 +94,12 @@ export function Login() {
                 placeholder="admin@simulation.local"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                required
+                onBlur={() => touch('email')}
+                aria-invalid={!!emailErr}
               />
+              {emailErr ? (
+                <p className="text-xs font-medium text-destructive">{emailErr}</p>
+              ) : null}
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
@@ -80,11 +109,15 @@ export function Login() {
                 autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                required
+                onBlur={() => touch('password')}
+                aria-invalid={!!passwordErr}
               />
+              {passwordErr ? (
+                <p className="text-xs font-medium text-destructive">{passwordErr}</p>
+              ) : null}
             </div>
-            {error ? (
-              <p className="text-sm font-medium text-destructive">{error}</p>
+            {serverError ? (
+              <p className="text-sm font-medium text-destructive">{serverError}</p>
             ) : null}
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? 'Signing in…' : 'Sign in'}

@@ -27,6 +27,13 @@ def create_app(config_class: type = Config) -> Flask:
 
     register_blueprints(app)
 
+    # Start the background scheduler that auto-launches due campaigns. The
+    # function self-guards against the test suite and the reloader parent, so
+    # it is safe to call unconditionally here.
+    from .scheduler import init_scheduler
+
+    init_scheduler(app)
+
     return app
 
 

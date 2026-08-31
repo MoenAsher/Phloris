@@ -43,6 +43,11 @@ class Config:
 
     # Flask
     SECRET_KEY = os.environ.get("SECRET_KEY", "change-me-to-a-random-string")
+    # Debug/reloader state, resolved at factory time. The scheduler uses this to
+    # avoid starting twice under Werkzeug's reloader (see app/scheduler.py).
+    DEBUG = _as_bool(os.environ.get("FLASK_DEBUG")) or (
+        os.environ.get("FLASK_ENV") == "development"
+    )
 
     # Database
     SQLALCHEMY_DATABASE_URI = _resolve_sqlite_uri(

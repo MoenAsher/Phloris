@@ -1,10 +1,15 @@
 import axios from 'axios'
 
-// The Flask backend. Port 5001 (5000 is taken by macOS AirPlay Receiver).
-// Use 127.0.0.1 (not "localhost") on purpose: the Flask dev server binds IPv4
-// only, but macOS resolves "localhost" to IPv6 (::1) first, which would be
-// refused. 127.0.0.1 forces IPv4 so the browser always reaches the backend.
-const BASE_URL = 'http://127.0.0.1:5001'
+// Same-origin base URL (empty string → requests go to the current origin).
+// In dev the browser talks only to the Vite server (localhost:5173) and Vite
+// proxies /api, /track, and /report to the Flask backend (see vite.config.ts).
+// This keeps every request same-origin, so there is no cross-origin CORS
+// preflight and none of the browser local-/private-network gating (Chrome's
+// Private Network Access, Safari's local-network prompt) that blocks a page on
+// localhost from calling 127.0.0.1 directly. In production Flask serves the
+// built bundle and the API from the same origin, so relative URLs work there
+// unchanged.
+const BASE_URL = ''
 
 // The JWT is held ONLY in memory (module scope), never in localStorage or
 // sessionStorage, per the project security convention. AuthContext keeps the

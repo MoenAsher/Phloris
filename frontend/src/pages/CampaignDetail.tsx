@@ -4,14 +4,17 @@ import { isAxiosError } from 'axios'
 import {
   ArrowLeft,
   Flag,
-  Loader2,
   Rocket,
   AlertTriangle,
   CheckCircle2,
   RefreshCw,
+  Download,
+  CalendarClock,
+  CalendarX2,
 } from 'lucide-react'
 
 import { api } from '@/lib/api'
+import { exportCampaignPdf } from '@/lib/campaignPdf'
 import type {
   ApiEnvelope,
   Campaign,
@@ -19,6 +22,7 @@ import type {
   CampaignTargetResult,
   CampaignTimeline,
   LaunchResult,
+  SendingProfile,
   Template,
   TargetGroup,
 } from '@/types'
@@ -45,6 +49,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Skeleton } from '@/components/ui/skeleton'
 import { StatusBadge } from '@/components/campaigns/StatusBadge'
 import { OutcomeBadge } from '@/components/campaigns/OutcomeBadge'
 import { CampaignCharts } from '@/components/campaigns/CampaignCharts'
@@ -67,6 +74,94 @@ function formatDate(iso: string | null): string {
   return iso ? new Date(iso).toLocaleString() : '—'
 }
 
+/** Format a Date as the `YYYY-MM-DDTHH:mm` string a datetime-local input wants,
+ *  in the browser's local timezone (what the user sees and types). */
+function toLocalInputValue(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return (
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
+    `T${pad(d.getHours())}:${pad(d.getMinutes())}`
+  )
+}
+
+function CampaignDetailSkeleton() {
+  return (
+    <div className="space-y-6">
+      <BackLink />
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="space-y-2">
+          <div className="flex items-center gap-3">
+            <Skeleton className="h-7 w-48" />
+            <Skeleton className="h-5 w-16 rounded-full" />
+          </div>
+          <Skeleton className="h-4 w-72" />
+          <Skeleton className="h-3 w-40" />
+        </div>
+        <Skeleton className="h-9 w-36" />
+      </div>
+      <div className="space-y-4">
+        <div className="grid gap-4 md:grid-cols-2">
+          <Skeleton className="h-52" />
+          <Skeleton className="h-52" />
+        </div>
+        <Skeleton className="h-52" />
+      </div>
+      <Card>
+        <CardHeader>
+          <Skeleton className="h-5 w-36" />
+          <Skeleton className="mt-1 h-4 w-56" />
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-10 w-full" />
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+function TargetsTableSkeleton() {
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Email</TableHead>
+          <TableHead>Name</TableHead>
+          <TableHead>Outcome</TableHead>
+          <TableHead>Time to click</TableHead>
+          <TableHead>Time to report</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {Array.from({ length: 5 }).map((_, i) => (
+          <TableRow key={i}>
+            <TableCell><Skeleton className="h-4 w-44" /></TableCell>
+            <TableCell><Skeleton className="h-4 w-28" /></TableCell>
+            <TableCell><Skeleton className="h-5 w-16 rounded-full" /></TableCell>
+            <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+            <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  )
+}
+
+function ChartsSkeleton() {
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-4 md:grid-cols-2">
+        <Skeleton className="h-52" />
+        <Skeleton className="h-52" />
+      </div>
+      <Skeleton className="h-52" />
+    </div>
+  )
+}
+
 export function CampaignDetail() {
   const { id } = useParams()
   const campaignId = Number(id)
@@ -74,8 +169,12 @@ export function CampaignDetail() {
   const [campaign, setCampaign] = useState<Campaign | null>(null)
   const [template, setTemplate] = useState<Template | null>(null)
   const [group, setGroup] = useState<TargetGroup | null>(null)
+  const [profile, setProfile] = useState<SendingProfile | null>(null)
   const [targets, setTargets] = useState<CampaignTargetResult[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+
+  const [exporting, setExporting] = useState(false)
+  const [exportError, setExportError] = useState<string | null>(null)
 
   const [metrics, setMetrics] = useState<CampaignMetrics | null>(null)
   const [timeline, setTimeline] = useState<CampaignTimeline | null>(null)
@@ -89,24 +188,42 @@ export function CampaignDetail() {
   const [completing, setCompleting] = useState(false)
   const [completeError, setCompleteError] = useState<string | null>(null)
 
+  const [scheduleOpen, setScheduleOpen] = useState(false)
+  const [scheduleValue, setScheduleValue] = useState('')
+  const [scheduleTouched, setScheduleTouched] = useState(false)
+  const [scheduling, setScheduling] = useState(false)
+  const [scheduleError, setScheduleError] = useState<string | null>(null)
+
+  const [unscheduling, setUnscheduling] = useState(false)
+  const [unscheduleError, setUnscheduleError] = useState<string | null>(null)
+
   const fetchDetail = useCallback(async () => {
     setError(null)
     try {
-      const [campaignResp, templatesResp, groupsResp, targetsResp, metricsResp, timelineResp] =
-        await Promise.all([
-          api.get<ApiEnvelope<Campaign>>(`/api/campaigns/${campaignId}`),
-          api.get<ApiEnvelope<Template[]>>('/api/templates'),
-          api.get<ApiEnvelope<TargetGroup[]>>('/api/target-groups'),
-          api.get<ApiEnvelope<{ targets: CampaignTargetResult[] }>>(
-            `/api/dashboard/campaigns/${campaignId}/targets`,
-          ),
-          api.get<ApiEnvelope<CampaignMetrics>>(`/api/dashboard/campaigns/${campaignId}/metrics`),
-          api.get<ApiEnvelope<CampaignTimeline>>(`/api/dashboard/campaigns/${campaignId}/timeline`),
-        ])
+      const [
+        campaignResp,
+        templatesResp,
+        groupsResp,
+        profilesResp,
+        targetsResp,
+        metricsResp,
+        timelineResp,
+      ] = await Promise.all([
+        api.get<ApiEnvelope<Campaign>>(`/api/campaigns/${campaignId}`),
+        api.get<ApiEnvelope<Template[]>>('/api/templates'),
+        api.get<ApiEnvelope<TargetGroup[]>>('/api/target-groups'),
+        api.get<ApiEnvelope<SendingProfile[]>>('/api/sending-profiles'),
+        api.get<ApiEnvelope<{ targets: CampaignTargetResult[] }>>(
+          `/api/dashboard/campaigns/${campaignId}/targets`,
+        ),
+        api.get<ApiEnvelope<CampaignMetrics>>(`/api/dashboard/campaigns/${campaignId}/metrics`),
+        api.get<ApiEnvelope<CampaignTimeline>>(`/api/dashboard/campaigns/${campaignId}/timeline`),
+      ])
       const c = campaignResp.data.data
       setCampaign(c)
       setTemplate(templatesResp.data.data.find((t) => t.id === c.template_id) ?? null)
       setGroup(groupsResp.data.data.find((g) => g.id === c.target_group_id) ?? null)
+      setProfile(profilesResp.data.data.find((p) => p.id === c.sending_profile_id) ?? null)
       setTargets(targetsResp.data.data.targets)
       setMetrics(metricsResp.data.data)
       setTimeline(timelineResp.data.data)
@@ -150,6 +267,70 @@ export function CampaignDetail() {
     }
   }
 
+  // Client-side validation for the schedule picker: a value must be present and
+  // strictly in the future. The backend re-validates as the source of truth.
+  const scheduleValidationError = !scheduleValue
+    ? 'Pick a date and time'
+    : new Date(scheduleValue).getTime() <= Date.now()
+      ? 'Choose a time in the future'
+      : null
+
+  async function confirmSchedule() {
+    setScheduleTouched(true)
+    if (scheduleValidationError) return
+    setScheduling(true)
+    setScheduleError(null)
+    try {
+      // datetime-local has no timezone; interpret it as local time and send an
+      // absolute UTC instant so the backend stores it unambiguously.
+      const scheduledAtUtc = new Date(scheduleValue).toISOString()
+      await api.post<ApiEnvelope<Campaign>>(
+        `/api/campaigns/${campaignId}/schedule`,
+        { scheduled_at: scheduledAtUtc },
+      )
+      setScheduleOpen(false)
+      await fetchDetail()
+    } catch (err) {
+      setScheduleError(errorMessage(err, 'Could not schedule the campaign.'))
+    } finally {
+      setScheduling(false)
+    }
+  }
+
+  async function confirmUnschedule() {
+    setUnscheduling(true)
+    setUnscheduleError(null)
+    try {
+      await api.post<ApiEnvelope<Campaign>>(`/api/campaigns/${campaignId}/unschedule`)
+      await fetchDetail()
+    } catch (err) {
+      setUnscheduleError(errorMessage(err, 'Could not cancel the schedule.'))
+    } finally {
+      setUnscheduling(false)
+    }
+  }
+
+  async function handleExport() {
+    if (!campaign || !metrics || targets === null) return
+    setExporting(true)
+    setExportError(null)
+    try {
+      exportCampaignPdf({
+        campaign,
+        templateName: template?.name ?? null,
+        groupName: group?.name ?? null,
+        profileName: profile?.name ?? null,
+        targetCount: group?.target_count ?? targets.length,
+        metrics,
+        targets,
+      })
+    } catch (err) {
+      setExportError(errorMessage(err, 'Could not generate the PDF.'))
+    } finally {
+      setExporting(false)
+    }
+  }
+
   // --- Loading / error gates ---
   if (error && campaign === null) {
     return (
@@ -166,22 +347,13 @@ export function CampaignDetail() {
   }
 
   if (campaign === null) {
-    return (
-      <div className="space-y-4">
-        <BackLink />
-        <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          Loading campaign…
-        </div>
-      </div>
-    )
+    return <CampaignDetailSkeleton />
   }
 
   const targetCount = group?.target_count ?? 0
   const alreadyLaunched = campaign.status === 'running' || campaign.status === 'completed'
   const canLaunch = !alreadyLaunched && targetCount > 0
 
-  // Outcome summary counts (from the per-target results).
   const summary = (targets ?? []).reduce(
     (acc, t) => {
       acc[t.outcome] += 1
@@ -214,6 +386,16 @@ export function CampaignDetail() {
 
         <div className="flex items-center gap-2">
           <Button
+            variant="outline"
+            className="gap-2"
+            disabled={exporting || metrics === null || targets === null}
+            onClick={() => void handleExport()}
+          >
+            <Download className="h-4 w-4" />
+            {exporting ? 'Exporting…' : 'Export PDF'}
+          </Button>
+
+          <Button
             className="gap-2"
             disabled={!canLaunch}
             title={
@@ -232,6 +414,27 @@ export function CampaignDetail() {
             {alreadyLaunched ? 'Launched' : 'Launch Campaign'}
           </Button>
 
+          {campaign.status === 'draft' && (
+            <Button
+              variant="outline"
+              className="gap-2"
+              disabled={targetCount === 0}
+              title={targetCount === 0 ? 'The target group has no targets.' : undefined}
+              onClick={() => {
+                setScheduleError(null)
+                setScheduleTouched(false)
+                // Default the picker to one hour from now, rounded to the minute.
+                const start = new Date(Date.now() + 60 * 60 * 1000)
+                start.setSeconds(0, 0)
+                setScheduleValue(toLocalInputValue(start))
+                setScheduleOpen(true)
+              }}
+            >
+              <CalendarClock className="h-4 w-4" />
+              Schedule
+            </Button>
+          )}
+
           {campaign.status === 'running' && (
             <Button
               variant="outline"
@@ -247,6 +450,36 @@ export function CampaignDetail() {
           )}
         </div>
       </div>
+
+      {/* PDF export error */}
+      {exportError ? (
+        <p className="text-sm font-medium text-destructive">{exportError}</p>
+      ) : null}
+
+      {/* Scheduled banner — shown while the campaign is awaiting auto-launch */}
+      {campaign.status === 'scheduled' ? (
+        <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="flex items-center gap-2 font-medium text-blue-800">
+              <CalendarClock className="h-4 w-4" />
+              Scheduled to launch automatically at {formatDate(campaign.scheduled_at)}
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              disabled={unscheduling}
+              onClick={() => void confirmUnschedule()}
+            >
+              <CalendarX2 className="h-4 w-4" />
+              {unscheduling ? 'Cancelling…' : 'Cancel schedule'}
+            </Button>
+          </div>
+          {unscheduleError ? (
+            <p className="mt-2 text-sm font-medium text-destructive">{unscheduleError}</p>
+          ) : null}
+        </div>
+      ) : null}
 
       {/* Post-launch summary banner */}
       {launchResult ? (
@@ -278,7 +511,7 @@ export function CampaignDetail() {
       {campaign.status === 'running' || campaign.status === 'completed'
         ? metrics && timeline
             ? <CampaignCharts metrics={metrics} timeline={timeline} />
-            : <p className="text-sm text-muted-foreground">Loading metrics…</p>
+            : <ChartsSkeleton />
         : null}
 
       {/* Per-target results */}
@@ -298,10 +531,7 @@ export function CampaignDetail() {
         </CardHeader>
         <CardContent>
           {targets === null ? (
-            <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Loading results…
-            </div>
+            <TargetsTableSkeleton />
           ) : targets.length === 0 ? (
             <p className="py-10 text-center text-sm text-muted-foreground">
               This campaign's target group has no targets.
@@ -388,6 +618,65 @@ export function CampaignDetail() {
             <Button className="gap-2" onClick={() => void confirmComplete()} disabled={completing}>
               <Flag className="h-4 w-4" />
               {completing ? 'Completing…' : 'Mark as completed'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Schedule dialog */}
+      <Dialog open={scheduleOpen} onOpenChange={(o) => !o && setScheduleOpen(false)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Schedule this campaign</DialogTitle>
+            <DialogDescription>
+              The campaign will launch automatically at the time you choose, sending
+              to all {targetCount} target{targetCount === 1 ? '' : 's'} in{' '}
+              <span className="font-medium">{group?.name}</span> via its sending
+              profile. Times are in your local timezone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="scheduled-at">Launch date &amp; time</Label>
+            <Input
+              id="scheduled-at"
+              type="datetime-local"
+              value={scheduleValue}
+              min={toLocalInputValue(new Date())}
+              onChange={(e) => setScheduleValue(e.target.value)}
+              onBlur={() => setScheduleTouched(true)}
+              aria-invalid={scheduleTouched && scheduleValidationError !== null}
+            />
+            {scheduleTouched && scheduleValidationError ? (
+              <p className="text-sm font-medium text-destructive">
+                {scheduleValidationError}
+              </p>
+            ) : null}
+            {campaign.sending_profile_id === null ? (
+              <p className="flex items-center gap-1.5 text-sm text-amber-700">
+                <AlertTriangle className="h-4 w-4" />
+                No sending profile is assigned — assign one before the scheduled time
+                or the launch will be skipped.
+              </p>
+            ) : null}
+          </div>
+          {scheduleError ? (
+            <p className="text-sm font-medium text-destructive">{scheduleError}</p>
+          ) : null}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setScheduleOpen(false)}
+              disabled={scheduling}
+            >
+              Cancel
+            </Button>
+            <Button
+              className="gap-2"
+              onClick={() => void confirmSchedule()}
+              disabled={scheduling || scheduleValidationError !== null}
+            >
+              <CalendarClock className="h-4 w-4" />
+              {scheduling ? 'Scheduling…' : 'Schedule launch'}
             </Button>
           </DialogFooter>
         </DialogContent>

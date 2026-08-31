@@ -16,6 +16,58 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+type TouchedFields = {
+  name: boolean
+  smtp_host: boolean
+  smtp_port: boolean
+  from_address: boolean
+  smtp_password: boolean
+}
+
+const NO_TOUCHED: TouchedFields = {
+  name: false,
+  smtp_host: false,
+  smtp_port: false,
+  from_address: false,
+  smtp_password: false,
+}
+
+const ALL_TOUCHED: TouchedFields = {
+  name: true,
+  smtp_host: true,
+  smtp_port: true,
+  from_address: true,
+  smtp_password: true,
+}
+
+function computeErrors(
+  name: string,
+  smtpHost: string,
+  smtpPort: string,
+  fromAddress: string,
+  smtpPassword: string,
+  isEdit: boolean,
+) {
+  const port = Number(smtpPort)
+  return {
+    name: name.trim() === '' ? 'Profile name is required' : null,
+    smtp_host: smtpHost.trim() === '' ? 'SMTP host is required' : null,
+    smtp_port:
+      !smtpPort || isNaN(port) || port < 1 || port > 65535
+        ? 'SMTP port must be a number between 1 and 65535'
+        : null,
+    from_address:
+      fromAddress.trim() === ''
+        ? 'From address is required'
+        : !EMAIL_RE.test(fromAddress.trim())
+          ? 'Enter a valid email address'
+          : null,
+    smtp_password: !isEdit && smtpPassword === '' ? 'Password is required' : null,
+  }
+}
+
 export function SendingProfileFormDialog({
   open,
   onOpenChange,
@@ -27,6 +79,8 @@ export function SendingProfileFormDialog({
   profile: SendingProfile | null
   onSaved: () => void
 }) {
+  const isEdit = profile !== null
+
   const [name, setName] = useState('')
   const [smtpHost, setSmtpHost] = useState('')
   const [smtpPort, setSmtpPort] = useState('587')
@@ -34,13 +88,15 @@ export function SendingProfileFormDialog({
   const [smtpPassword, setSmtpPassword] = useState('')
   const [fromAddress, setFromAddress] = useState('')
   const [useTls, setUseTls] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [touched, setTouched] = useState<TouchedFields>(NO_TOUCHED)
+  const [serverError, setServerError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     if (!open) return
-    setError(null)
+    setServerError(null)
     setSmtpPassword('')
+    setTouched(NO_TOUCHED)
     if (profile) {
       setName(profile.name)
       setSmtpHost(profile.smtp_host)
@@ -58,9 +114,16 @@ export function SendingProfileFormDialog({
     }
   }, [open, profile])
 
+  function touch(field: keyof TouchedFields) {
+    setTouched((t) => ({ ...t, [field]: true }))
+  }
+
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    setError(null)
+    setTouched(ALL_TOUCHED)
+    const errs = computeErrors(name, smtpHost, smtpPort, fromAddress, smtpPassword, isEdit)
+    if (Object.values(errs).some(Boolean)) return
+    setServerError(null)
     setSaving(true)
     try {
       const payload: Record<string, unknown> = {
@@ -88,24 +151,19 @@ export function SendingProfileFormDialog({
       onOpenChange(false)
     } catch (err) {
       if (isAxiosError(err) && err.response?.data?.error) {
-        setError(String(err.response.data.error))
+        setServerError(String(err.response.data.error))
       } else if (isAxiosError(err) && err.request) {
-        setError('Cannot reach the backend. Is it running on port 5001?')
+        setServerError('Cannot reach the backend. Is it running on port 5001?')
       } else {
-        setError(profile ? 'Failed to update the profile.' : 'Failed to create the profile.')
+        setServerError(profile ? 'Failed to update the profile.' : 'Failed to create the profile.')
       }
     } finally {
       setSaving(false)
     }
   }
 
-  const isValid =
-    name.trim() !== '' &&
-    smtpHost.trim() !== '' &&
-    fromAddress.trim() !== '' &&
-    Number(smtpPort) >= 1 &&
-    Number(smtpPort) <= 65535 &&
-    (profile !== null || smtpPassword !== '')
+  const errs = computeErrors(name, smtpHost, smtpPort, fromAddress, smtpPassword, isEdit)
+  const hasErrors = Object.values(errs).some(Boolean)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -119,16 +177,20 @@ export function SendingProfileFormDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} noValidate className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="sp-name">Name</Label>
             <Input
               id="sp-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
+              onBlur={() => touch('name')}
               placeholder="e.g. Mailtrap Sandbox"
-              required
+              aria-invalid={!!(touched.name && errs.name)}
             />
+            {touched.name && errs.name ? (
+              <p className="text-xs font-medium text-destructive">{errs.name}</p>
+            ) : null}
           </div>
 
           <div className="grid grid-cols-3 gap-3">
@@ -138,9 +200,13 @@ export function SendingProfileFormDialog({
                 id="sp-host"
                 value={smtpHost}
                 onChange={(e) => setSmtpHost(e.target.value)}
+                onBlur={() => touch('smtp_host')}
                 placeholder="sandbox.smtp.mailtrap.io"
-                required
+                aria-invalid={!!(touched.smtp_host && errs.smtp_host)}
               />
+              {touched.smtp_host && errs.smtp_host ? (
+                <p className="text-xs font-medium text-destructive">{errs.smtp_host}</p>
+              ) : null}
             </div>
             <div className="space-y-2">
               <Label htmlFor="sp-port">Port</Label>
@@ -151,8 +217,12 @@ export function SendingProfileFormDialog({
                 max={65535}
                 value={smtpPort}
                 onChange={(e) => setSmtpPort(e.target.value)}
-                required
+                onBlur={() => touch('smtp_port')}
+                aria-invalid={!!(touched.smtp_port && errs.smtp_port)}
               />
+              {touched.smtp_port && errs.smtp_port ? (
+                <p className="text-xs font-medium text-destructive col-span-3">{errs.smtp_port}</p>
+              ) : null}
             </div>
           </div>
 
@@ -181,9 +251,14 @@ export function SendingProfileFormDialog({
               type="password"
               value={smtpPassword}
               onChange={(e) => setSmtpPassword(e.target.value)}
+              onBlur={() => touch('smtp_password')}
               placeholder={profile?.has_password ? '••••••••' : 'Required'}
               autoComplete="new-password"
+              aria-invalid={!!(touched.smtp_password && errs.smtp_password)}
             />
+            {touched.smtp_password && errs.smtp_password ? (
+              <p className="text-xs font-medium text-destructive">{errs.smtp_password}</p>
+            ) : null}
           </div>
 
           <div className="space-y-2">
@@ -193,9 +268,13 @@ export function SendingProfileFormDialog({
               type="email"
               value={fromAddress}
               onChange={(e) => setFromAddress(e.target.value)}
+              onBlur={() => touch('from_address')}
               placeholder="security-team@simulation.local"
-              required
+              aria-invalid={!!(touched.from_address && errs.from_address)}
             />
+            {touched.from_address && errs.from_address ? (
+              <p className="text-xs font-medium text-destructive">{errs.from_address}</p>
+            ) : null}
           </div>
 
           <div className="flex items-center gap-2">
@@ -211,15 +290,15 @@ export function SendingProfileFormDialog({
             </Label>
           </div>
 
-          {error ? (
-            <p className="text-sm font-medium text-destructive">{error}</p>
+          {serverError ? (
+            <p className="text-sm font-medium text-destructive">{serverError}</p>
           ) : null}
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={saving || !isValid}>
+            <Button type="submit" disabled={saving || (Object.values(touched).some(Boolean) && hasErrors)}>
               {saving ? (profile ? 'Saving…' : 'Creating…') : (profile ? 'Save changes' : 'Create profile')}
             </Button>
           </DialogFooter>

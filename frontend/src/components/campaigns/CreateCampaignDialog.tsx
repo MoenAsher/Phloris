@@ -38,24 +38,28 @@ export function CreateCampaignDialog({
   const [templateId, setTemplateId] = useState('')
   const [groupId, setGroupId] = useState('')
   const [profileId, setProfileId] = useState('')
-  const [error, setError] = useState<string | null>(null)
+  const [nameTouched, setNameTouched] = useState(false)
+  const [serverError, setServerError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
-  // Default the selects to the first available option each time we open.
   useEffect(() => {
     if (!open) return
     setName('')
-    setError(null)
+    setNameTouched(false)
+    setServerError(null)
     setTemplateId(templates[0] ? String(templates[0].id) : '')
     setGroupId(groups[0] ? String(groups[0].id) : '')
     setProfileId(profiles[0] ? String(profiles[0].id) : '')
   }, [open, templates, groups, profiles])
 
   const missingPrereqs = templates.length === 0 || groups.length === 0 || profiles.length === 0
+  const nameError = nameTouched && name.trim() === '' ? 'Campaign name is required' : null
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    setError(null)
+    setNameTouched(true)
+    if (name.trim() === '') return
+    setServerError(null)
     setSaving(true)
     try {
       const resp = await api.post<ApiEnvelope<Campaign>>('/api/campaigns', {
@@ -68,11 +72,11 @@ export function CreateCampaignDialog({
       onOpenChange(false)
     } catch (err) {
       if (isAxiosError(err) && err.response?.data?.error) {
-        setError(String(err.response.data.error))
+        setServerError(String(err.response.data.error))
       } else if (isAxiosError(err) && err.request) {
-        setError('Cannot reach the backend. Is it running on port 5001?')
+        setServerError('Cannot reach the backend. Is it running on port 5001?')
       } else {
-        setError('Failed to create the campaign.')
+        setServerError('Failed to create the campaign.')
       }
     } finally {
       setSaving(false)
@@ -105,16 +109,20 @@ export function CreateCampaignDialog({
             </DialogFooter>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} noValidate className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="camp-name">Name</Label>
               <Input
                 id="camp-name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
+                onBlur={() => setNameTouched(true)}
                 placeholder="e.g. Q3 Awareness Test"
-                required
+                aria-invalid={!!nameError}
               />
+              {nameError ? (
+                <p className="text-xs font-medium text-destructive">{nameError}</p>
+              ) : null}
             </div>
             <div className="space-y-2">
               <Label htmlFor="camp-template">Template</Label>
@@ -161,14 +169,14 @@ export function CreateCampaignDialog({
                 ))}
               </select>
             </div>
-            {error ? (
-              <p className="text-sm font-medium text-destructive">{error}</p>
+            {serverError ? (
+              <p className="text-sm font-medium text-destructive">{serverError}</p>
             ) : null}
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={saving || name.trim() === '' || !templateId || !groupId || !profileId}>
+              <Button type="submit" disabled={saving || !templateId || !groupId || !profileId}>
                 {saving ? 'Creating…' : 'Create campaign'}
               </Button>
             </DialogFooter>

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { isAxiosError } from 'axios'
-import { Plus, Trash2, Upload, Loader2, UserPlus, Users } from 'lucide-react'
+import { Plus, Trash2, Upload, UserPlus, Users } from 'lucide-react'
 
 import { api } from '@/lib/api'
 import type { ApiEnvelope, Target, TargetGroup } from '@/types'
@@ -30,13 +30,51 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { Skeleton } from '@/components/ui/skeleton'
 import { CreateGroupDialog } from '@/components/targets/CreateGroupDialog'
 import { ImportCsvDialog } from '@/components/targets/ImportCsvDialog'
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 function errorMessage(err: unknown, fallback: string): string {
   if (isAxiosError(err) && err.response?.data?.error) return String(err.response.data.error)
   if (isAxiosError(err) && err.request) return 'Cannot reach the backend. Is it running on port 5001?'
   return fallback
+}
+
+function GroupsSkeleton() {
+  return (
+    <div className="space-y-1 py-2">
+      {Array.from({ length: 3 }).map((_, i) => (
+        <Skeleton key={i} className="h-9 w-full rounded-md" />
+      ))}
+    </div>
+  )
+}
+
+function TargetsTableSkeleton() {
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Email</TableHead>
+          <TableHead>First name</TableHead>
+          <TableHead>Last name</TableHead>
+          <TableHead className="text-right">Actions</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {Array.from({ length: 4 }).map((_, i) => (
+          <TableRow key={i}>
+            <TableCell><Skeleton className="h-4 w-44" /></TableCell>
+            <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+            <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+            <TableCell className="text-right"><Skeleton className="ml-auto h-8 w-8 rounded-md" /></TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  )
 }
 
 export function Targets() {
@@ -51,6 +89,7 @@ export function Targets() {
   const [importOpen, setImportOpen] = useState(false)
 
   const [addForm, setAddForm] = useState({ email: '', first_name: '', last_name: '' })
+  const [emailTouched, setEmailTouched] = useState(false)
   const [addError, setAddError] = useState<string | null>(null)
   const [adding, setAdding] = useState(false)
 
@@ -60,6 +99,15 @@ export function Targets() {
   const [confirmBusy, setConfirmBusy] = useState(false)
 
   const selectedGroup = groups?.find((g) => g.id === selectedId) ?? null
+
+  const emailFieldError =
+    emailTouched
+      ? addForm.email === ''
+        ? 'Email is required'
+        : !EMAIL_RE.test(addForm.email)
+          ? 'Enter a valid email address'
+          : null
+      : null
 
   const fetchGroups = useCallback(async () => {
     setGroupsError(null)
@@ -90,7 +138,6 @@ export function Targets() {
     void fetchGroups()
   }, [fetchGroups])
 
-  // Keep a valid selection: default to the first group; clear if it's gone.
   useEffect(() => {
     if (groups === null) return
     setSelectedId((cur) =>
@@ -109,6 +156,8 @@ export function Targets() {
   async function handleAddTarget(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
     if (selectedId === null) return
+    setEmailTouched(true)
+    if (!addForm.email || !EMAIL_RE.test(addForm.email)) return
     setAdding(true)
     setAddError(null)
     try {
@@ -118,6 +167,7 @@ export function Targets() {
         last_name: addForm.last_name.trim() || null,
       })
       setAddForm({ email: '', first_name: '', last_name: '' })
+      setEmailTouched(false)
       await Promise.all([fetchTargets(selectedId), fetchGroups()])
     } catch (err) {
       setAddError(errorMessage(err, 'Failed to add the target.'))
@@ -179,10 +229,7 @@ export function Targets() {
           </CardHeader>
           <CardContent className="space-y-1">
             {groups === null && !groupsError ? (
-              <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Loading…
-              </div>
+              <GroupsSkeleton />
             ) : null}
 
             {groupsError ? (
@@ -270,47 +317,54 @@ export function Targets() {
                 {/* Add target form */}
                 <form
                   onSubmit={handleAddTarget}
-                  className="flex flex-wrap items-end gap-2 rounded-md border bg-muted/30 p-3"
+                  noValidate
+                  className="rounded-md border bg-muted/30 p-3"
                 >
-                  <div className="flex-1 space-y-1" style={{ minWidth: '200px' }}>
-                    <label className="text-xs font-medium" htmlFor="add-email">
-                      Email
-                    </label>
-                    <Input
-                      id="add-email"
-                      type="email"
-                      required
-                      value={addForm.email}
-                      onChange={(e) => setAddForm((f) => ({ ...f, email: e.target.value }))}
-                      placeholder="person@example.com"
-                    />
+                  <div className="flex flex-wrap items-end gap-2">
+                    <div className="flex-1 space-y-1" style={{ minWidth: '200px' }}>
+                      <label className="text-xs font-medium" htmlFor="add-email">
+                        Email
+                      </label>
+                      <Input
+                        id="add-email"
+                        type="email"
+                        value={addForm.email}
+                        onChange={(e) => setAddForm((f) => ({ ...f, email: e.target.value }))}
+                        onBlur={() => setEmailTouched(true)}
+                        placeholder="person@example.com"
+                        aria-invalid={!!emailFieldError}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium" htmlFor="add-first">
+                        First name
+                      </label>
+                      <Input
+                        id="add-first"
+                        value={addForm.first_name}
+                        onChange={(e) => setAddForm((f) => ({ ...f, first_name: e.target.value }))}
+                        placeholder="Ada"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium" htmlFor="add-last">
+                        Last name
+                      </label>
+                      <Input
+                        id="add-last"
+                        value={addForm.last_name}
+                        onChange={(e) => setAddForm((f) => ({ ...f, last_name: e.target.value }))}
+                        placeholder="Lovelace"
+                      />
+                    </div>
+                    <Button type="submit" className="gap-1.5" disabled={adding}>
+                      <UserPlus className="h-4 w-4" />
+                      {adding ? 'Adding…' : 'Add'}
+                    </Button>
                   </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-medium" htmlFor="add-first">
-                      First name
-                    </label>
-                    <Input
-                      id="add-first"
-                      value={addForm.first_name}
-                      onChange={(e) => setAddForm((f) => ({ ...f, first_name: e.target.value }))}
-                      placeholder="Ada"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-medium" htmlFor="add-last">
-                      Last name
-                    </label>
-                    <Input
-                      id="add-last"
-                      value={addForm.last_name}
-                      onChange={(e) => setAddForm((f) => ({ ...f, last_name: e.target.value }))}
-                      placeholder="Lovelace"
-                    />
-                  </div>
-                  <Button type="submit" className="gap-1.5" disabled={adding}>
-                    <UserPlus className="h-4 w-4" />
-                    {adding ? 'Adding…' : 'Add'}
-                  </Button>
+                  {emailFieldError ? (
+                    <p className="mt-2 text-xs font-medium text-destructive">{emailFieldError}</p>
+                  ) : null}
                 </form>
                 {addError ? (
                   <p className="text-sm font-medium text-destructive">{addError}</p>
@@ -318,10 +372,7 @@ export function Targets() {
 
                 {/* Targets table */}
                 {targets === null && !targetsError ? (
-                  <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Loading targets…
-                  </div>
+                  <TargetsTableSkeleton />
                 ) : null}
 
                 {targetsError ? (

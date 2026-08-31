@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { isAxiosError } from 'axios'
-import { Plus, Loader2, ArrowRight } from 'lucide-react'
+import { Plus, ArrowRight } from 'lucide-react'
 
 import { api } from '@/lib/api'
 import type { ApiEnvelope, Campaign, SendingProfile, Template, TargetGroup } from '@/types'
@@ -21,8 +21,36 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { Skeleton } from '@/components/ui/skeleton'
 import { StatusBadge } from '@/components/campaigns/StatusBadge'
 import { CreateCampaignDialog } from '@/components/campaigns/CreateCampaignDialog'
+
+function CampaignsTableSkeleton() {
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Name</TableHead>
+          <TableHead>Template</TableHead>
+          <TableHead>Target group</TableHead>
+          <TableHead>Status</TableHead>
+          <TableHead className="text-right">Actions</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {Array.from({ length: 4 }).map((_, i) => (
+          <TableRow key={i}>
+            <TableCell><Skeleton className="h-4 w-36" /></TableCell>
+            <TableCell><Skeleton className="h-4 w-28" /></TableCell>
+            <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+            <TableCell><Skeleton className="h-5 w-16 rounded-full" /></TableCell>
+            <TableCell className="text-right"><Skeleton className="ml-auto h-8 w-14" /></TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  )
+}
 
 export function Campaigns() {
   const navigate = useNavigate()
@@ -93,10 +121,7 @@ export function Campaigns() {
         </CardHeader>
         <CardContent>
           {campaigns === null && !error ? (
-            <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Loading campaigns…
-            </div>
+            <CampaignsTableSkeleton />
           ) : null}
 
           {error ? (

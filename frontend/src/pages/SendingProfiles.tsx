@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { isAxiosError } from 'axios'
-import { Plus, Pencil, Trash2, Loader2, Send, X } from 'lucide-react'
+import { Plus, Pencil, Trash2, Send, X } from 'lucide-react'
 
 import { api } from '@/lib/api'
 import type { ApiEnvelope, SendingProfile } from '@/types'
@@ -28,12 +28,48 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { Skeleton } from '@/components/ui/skeleton'
 import { SendingProfileFormDialog } from '@/components/sending-profiles/SendingProfileFormDialog'
 
 interface TestResult {
   id: number
   ok: boolean
   message: string
+}
+
+function ProfilesTableSkeleton() {
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Name</TableHead>
+          <TableHead>SMTP Host</TableHead>
+          <TableHead>Port</TableHead>
+          <TableHead>From Address</TableHead>
+          <TableHead>TLS</TableHead>
+          <TableHead className="text-right">Actions</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {Array.from({ length: 3 }).map((_, i) => (
+          <TableRow key={i}>
+            <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+            <TableCell><Skeleton className="h-4 w-40" /></TableCell>
+            <TableCell><Skeleton className="h-4 w-10" /></TableCell>
+            <TableCell><Skeleton className="h-4 w-48" /></TableCell>
+            <TableCell><Skeleton className="h-4 w-8" /></TableCell>
+            <TableCell className="text-right">
+              <div className="flex justify-end gap-1">
+                <Skeleton className="h-8 w-8 rounded-md" />
+                <Skeleton className="h-8 w-8 rounded-md" />
+                <Skeleton className="h-8 w-8 rounded-md" />
+              </div>
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  )
 }
 
 export function SendingProfiles() {
@@ -170,12 +206,9 @@ export function SendingProfiles() {
             </div>
           ) : null}
 
-          {/* Loading */}
+          {/* Loading skeleton */}
           {profiles === null && !loadError ? (
-            <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Loading profiles…
-            </div>
+            <ProfilesTableSkeleton />
           ) : null}
 
           {/* Error */}
@@ -234,7 +267,7 @@ export function SendingProfiles() {
                           onClick={() => void sendTest(p)}
                         >
                           {testingId === p.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <Send className="h-4 w-4 animate-pulse" />
                           ) : (
                             <Send className="h-4 w-4" />
                           )}

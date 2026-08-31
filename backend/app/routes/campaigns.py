@@ -14,7 +14,7 @@ from flask_jwt_extended import jwt_required
 from ..extensions import db
 from ..models import Campaign, CampaignStatus, Template, TargetGroup, SendingProfile
 from ..services.email_service import launch_campaign
-from ..utils.time import utcnow
+from ..utils.time import utcnow, parse_utc
 
 campaigns_bp = Blueprint("campaigns", __name__)
 
@@ -156,6 +156,58 @@ def launch(campaign_id):
         ),
         200,
     )
+
+
+@campaigns_bp.post("/campaigns/<int:campaign_id>/schedule")
+@jwt_required()
+def schedule_campaign(campaign_id):
+    """Schedule a draft campaign to auto-launch at a future UTC time.
+
+    The background scheduler (app/scheduler.py) sweeps for due campaigns and
+    launches them via the same path as the manual launch endpoint.
+    """
+    campaign = db.session.get(Campaign, campaign_id)
+    if campaign is None:
+        return _err("campaign not found", 404)
+    if campaign.status is not CampaignStatus.draft:
+        return _err(
+            f"only draft campaigns can be scheduled (current status: '{campaign.status.value}')",
+            409,
+        )
+
+    data = request.get_json(silent=True) or {}
+    raw = data.get("scheduled_at")
+    if not raw:
+        return _err("scheduled_at is required", 400)
+    try:
+        scheduled_at = parse_utc(str(raw))
+    except ValueError:
+        return _err("scheduled_at must be an ISO-8601 datetime", 400)
+    if scheduled_at <= utcnow():
+        return _err("scheduled_at must be in the future", 400)
+
+    campaign.status = CampaignStatus.scheduled
+    campaign.scheduled_at = scheduled_at
+    db.session.commit()
+    return jsonify({"data": campaign.to_dict()}), 200
+
+
+@campaigns_bp.post("/campaigns/<int:campaign_id>/unschedule")
+@jwt_required()
+def unschedule_campaign(campaign_id):
+    """Cancel a schedule, returning a scheduled campaign to draft."""
+    campaign = db.session.get(Campaign, campaign_id)
+    if campaign is None:
+        return _err("campaign not found", 404)
+    if campaign.status is not CampaignStatus.scheduled:
+        return _err(
+            f"only scheduled campaigns can be unscheduled (current status: '{campaign.status.value}')",
+            409,
+        )
+    campaign.status = CampaignStatus.draft
+    campaign.scheduled_at = None
+    db.session.commit()
+    return jsonify({"data": campaign.to_dict()}), 200
 
 
 @campaigns_bp.post("/campaigns/<int:campaign_id>/complete")

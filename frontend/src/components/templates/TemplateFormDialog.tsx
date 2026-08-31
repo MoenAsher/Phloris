@@ -27,6 +27,16 @@ const EMPTY = {
   feedback_notes: '',
 }
 
+type Touched = { name: boolean; subject: boolean; body_html: boolean }
+
+function fieldErrors(form: typeof EMPTY) {
+  return {
+    name: form.name.trim() === '' ? 'Name is required' : null,
+    subject: form.subject.trim() === '' ? 'Subject is required' : null,
+    body_html: form.body_html.trim() === '' ? 'Body HTML is required' : null,
+  }
+}
+
 export function TemplateFormDialog({
   open,
   onOpenChange,
@@ -40,13 +50,14 @@ export function TemplateFormDialog({
 }) {
   const isEdit = template !== null
   const [form, setForm] = useState(EMPTY)
-  const [error, setError] = useState<string | null>(null)
+  const [touched, setTouched] = useState<Touched>({ name: false, subject: false, body_html: false })
+  const [serverError, setServerError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
-  // Load the editing template (or reset to blank) each time the dialog opens.
   useEffect(() => {
     if (!open) return
-    setError(null)
+    setServerError(null)
+    setTouched({ name: false, subject: false, body_html: false })
     if (template) {
       setForm({
         name: template.name,
@@ -64,12 +75,17 @@ export function TemplateFormDialog({
     setForm((prev) => ({ ...prev, [key]: value }))
   }
 
+  function touch(field: keyof Touched) {
+    setTouched((t) => ({ ...t, [field]: true }))
+  }
+
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    setError(null)
+    setTouched({ name: true, subject: true, body_html: true })
+    const errs = fieldErrors(form)
+    if (errs.name || errs.subject || errs.body_html) return
+    setServerError(null)
     setSaving(true)
-    // Send body_html (and every field) verbatim so placeholder tokens like
-    // {{first_name}} are stored exactly as typed.
     const payload = {
       name: form.name.trim(),
       subject: form.subject.trim(),
@@ -87,22 +103,19 @@ export function TemplateFormDialog({
       onOpenChange(false)
     } catch (err) {
       if (isAxiosError(err) && err.response?.data?.error) {
-        setError(String(err.response.data.error))
+        setServerError(String(err.response.data.error))
       } else if (isAxiosError(err) && err.request) {
-        setError('Cannot reach the backend. Is it running on port 5001?')
+        setServerError('Cannot reach the backend. Is it running on port 5001?')
       } else {
-        setError('Something went wrong while saving.')
+        setServerError('Something went wrong while saving.')
       }
     } finally {
       setSaving(false)
     }
   }
 
-  const canSubmit =
-    form.name.trim() !== '' &&
-    form.subject.trim() !== '' &&
-    form.body_html.trim() !== '' &&
-    !saving
+  const errs = fieldErrors(form)
+  const canSubmit = !errs.name && !errs.subject && !errs.body_html && !saving
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -115,7 +128,7 @@ export function TemplateFormDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="grid gap-4 md:grid-cols-2">
+        <form onSubmit={handleSubmit} noValidate className="grid gap-4 md:grid-cols-2">
           {/* Left: fields */}
           <div className="space-y-4">
             <div className="space-y-2">
@@ -124,9 +137,13 @@ export function TemplateFormDialog({
                 id="tpl-name"
                 value={form.name}
                 onChange={(e) => update('name', e.target.value)}
+                onBlur={() => touch('name')}
                 placeholder="Internal label"
-                required
+                aria-invalid={!!(touched.name && errs.name)}
               />
+              {touched.name && errs.name ? (
+                <p className="text-xs font-medium text-destructive">{errs.name}</p>
+              ) : null}
             </div>
             <div className="space-y-2">
               <Label htmlFor="tpl-subject">Subject</Label>
@@ -134,9 +151,13 @@ export function TemplateFormDialog({
                 id="tpl-subject"
                 value={form.subject}
                 onChange={(e) => update('subject', e.target.value)}
+                onBlur={() => touch('subject')}
                 placeholder="Email subject line"
-                required
+                aria-invalid={!!(touched.subject && errs.subject)}
               />
+              {touched.subject && errs.subject ? (
+                <p className="text-xs font-medium text-destructive">{errs.subject}</p>
+              ) : null}
             </div>
             <div className="space-y-2">
               <Label htmlFor="tpl-difficulty">Difficulty</Label>
@@ -157,10 +178,14 @@ export function TemplateFormDialog({
                 id="tpl-body"
                 value={form.body_html}
                 onChange={(e) => update('body_html', e.target.value)}
+                onBlur={() => touch('body_html')}
                 placeholder="<p>Hi {{first_name}}, <a href='{{tracking_link}}'>click here</a></p>"
                 className="min-h-[160px] font-mono text-xs"
-                required
+                aria-invalid={!!(touched.body_html && errs.body_html)}
               />
+              {touched.body_html && errs.body_html ? (
+                <p className="text-xs font-medium text-destructive">{errs.body_html}</p>
+              ) : null}
             </div>
             <div className="space-y-2">
               <Label htmlFor="tpl-notes">Feedback notes (optional)</Label>
@@ -195,9 +220,9 @@ export function TemplateFormDialog({
             </p>
           </div>
 
-          {error ? (
+          {serverError ? (
             <p className="text-sm font-medium text-destructive md:col-span-2">
-              {error}
+              {serverError}
             </p>
           ) : null}
 
