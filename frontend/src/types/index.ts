@@ -184,3 +184,59 @@ export interface DashboardOverview {
   overall_click_rate: number
   overall_report_rate: number
 }
+
+/** One entry from GET /api/benchmarks */
+export interface MetricBenchmark {
+  label: string
+  value: number | null
+  source: string | null
+  direction: 'lower_is_better' | 'higher_is_better'
+  note: string | null
+}
+
+/** GET /api/benchmarks — industry baselines for the four behavioural metrics */
+export interface Benchmarks {
+  click_rate: MetricBenchmark
+  report_rate: MetricBenchmark
+  avg_time_to_click: MetricBenchmark
+  avg_time_to_report: MetricBenchmark
+}
+
+/** One campaign entry in GET /api/targets/:id/history */
+export interface TargetHistoryCampaign {
+  campaign_id: number
+  campaign_name: string | null
+  launched_at: string | null
+  clicked: boolean
+  reported: boolean
+  outcome: 'clicked' | 'reported' | 'no_action'
+  time_to_click_seconds: number | null
+  time_to_report_seconds: number | null
+}
+
+export interface TargetHistorySummary {
+  total_campaigns: number
+  clicked_count: number
+  reported_count: number
+  no_action_count: number
+}
+
+/** GET /api/search?q=... — grouped results across all four entity types */
+export interface SearchResults {
+  campaigns: { id: number; name: string; status: string }[]
+  targets: { id: number; email: string; first_name: string | null; last_name: string | null }[]
+  templates: { id: number; name: string; difficulty_level: string }[]
+  sending_profiles: { id: number; name: string; from_address: string }[]
+}
+
+/** GET /api/targets/:id/history — admin-only cross-campaign view for one target */
+export interface TargetHistory {
+  target: {
+    id: number
+    email: string
+    first_name: string | null
+    last_name: string | null
+  }
+  campaigns: TargetHistoryCampaign[]
+  summary: TargetHistorySummary
+}

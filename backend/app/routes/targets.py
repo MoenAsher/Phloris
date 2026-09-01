@@ -12,12 +12,14 @@ clean.
 
 import csv
 import io
+from collections import defaultdict
 
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required
 
 from ..extensions import db
-from ..models import TargetGroup, Target
+from ..models import Campaign, Event, EventType, TargetGroup, Target
+from ..utils.time import iso
 
 targets_bp = Blueprint("targets", __name__)
 
@@ -194,6 +196,95 @@ def delete_target(target_id):
     db.session.delete(target)
     db.session.commit()
     return jsonify({"data": {"id": target_id}}), 200
+
+
+# --- Target history (admin analytics) ------------------------------------
+
+
+@targets_bp.get("/targets/<int:target_id>/history")
+@jwt_required()
+def target_history(target_id):
+    """Cross-campaign history for a single target (admin-only, JWT-protected).
+
+    Returns every campaign the target was sent to, with derived per-campaign
+    outcomes and timings computed from existing Event data only.
+    """
+    target = db.session.get(Target, target_id)
+    if target is None:
+        return _err("target not found", 404)
+
+    # All events for this target, grouped by campaign.
+    events = (
+        Event.query.filter_by(target_id=target_id)
+        .order_by(Event.campaign_id, Event.timestamp)
+        .all()
+    )
+    events_by_campaign: dict[int, list[Event]] = defaultdict(list)
+    for ev in events:
+        events_by_campaign[ev.campaign_id].append(ev)
+
+    campaign_results = []
+    for campaign_id, evts in events_by_campaign.items():
+        sent_evts = [e for e in evts if e.event_type == EventType.sent]
+        if not sent_evts:
+            # Target wasn't actually sent to in this campaign — skip.
+            continue
+
+        sent_ts = min(e.timestamp for e in sent_evts)
+
+        click_evts = [e for e in evts if e.event_type == EventType.clicked]
+        report_evts = [e for e in evts if e.event_type == EventType.reported]
+
+        clicked = bool(click_evts)
+        reported = bool(report_evts)
+
+        click_ts = min((e.timestamp for e in click_evts), default=None)
+        report_ts = min((e.timestamp for e in report_evts), default=None)
+
+        outcome = "clicked" if clicked else ("reported" if reported else "no_action")
+
+        campaign = db.session.get(Campaign, campaign_id)
+        campaign_results.append(
+            {
+                "campaign_id": campaign_id,
+                "campaign_name": campaign.name if campaign else None,
+                "launched_at": iso(campaign.launched_at) if campaign else None,
+                "clicked": clicked,
+                "reported": reported,
+                "outcome": outcome,
+                "time_to_click_seconds": (
+                    (click_ts - sent_ts).total_seconds() if click_ts else None
+                ),
+                "time_to_report_seconds": (
+                    (report_ts - sent_ts).total_seconds() if report_ts else None
+                ),
+            }
+        )
+
+    # Chronological order — required for the trend chart.
+    campaign_results.sort(key=lambda r: r["launched_at"] or "")
+
+    summary = {
+        "total_campaigns": len(campaign_results),
+        "clicked_count": sum(1 for r in campaign_results if r["clicked"]),
+        "reported_count": sum(1 for r in campaign_results if r["reported"]),
+        "no_action_count": sum(
+            1 for r in campaign_results if r["outcome"] == "no_action"
+        ),
+    }
+
+    return (
+        jsonify(
+            {
+                "data": {
+                    "target": target.to_dict(),
+                    "campaigns": campaign_results,
+                    "summary": summary,
+                }
+            }
+        ),
+        200,
+    )
 
 
 # --- Helpers --------------------------------------------------------------

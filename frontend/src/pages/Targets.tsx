@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { isAxiosError } from 'axios'
-import { Plus, Trash2, Upload, UserPlus, Users } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { BarChart2, Plus, Trash2, Upload, UserPlus, Users } from 'lucide-react'
 
 import { api } from '@/lib/api'
 import type { ApiEnvelope, Target, TargetGroup } from '@/types'
@@ -415,6 +416,11 @@ export function Targets() {
                             {t.last_name ?? '—'}
                           </TableCell>
                           <TableCell className="text-right">
+                            <Button asChild variant="ghost" size="icon" title="View campaign history">
+                              <Link to={`/targets/${t.id}/history`}>
+                                <BarChart2 className="h-4 w-4" />
+                              </Link>
+                            </Button>
                             <Button
                               variant="ghost"
                               size="icon"

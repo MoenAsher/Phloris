@@ -5,6 +5,7 @@ import { api } from '@/lib/api'
 import { formatPercent } from '@/lib/format'
 import type {
   ApiEnvelope,
+  Benchmarks,
   Campaign,
   CampaignMetrics,
   CampaignTimeline,
@@ -19,6 +20,7 @@ import {
 } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { BenchmarkComparison } from '@/components/campaigns/BenchmarkComparison'
 import { CampaignCharts } from '@/components/campaigns/CampaignCharts'
 
 function errorMessage(err: unknown, fallback: string): string {
@@ -76,6 +78,7 @@ function MetricsSkeletons() {
 export function Dashboard() {
   const [overview, setOverview] = useState<DashboardOverview | null>(null)
   const [campaigns, setCampaigns] = useState<Campaign[] | null>(null)
+  const [benchmarks, setBenchmarks] = useState<Benchmarks | null>(null)
   const [topError, setTopError] = useState<string | null>(null)
 
   const [selectedId, setSelectedId] = useState<number | null>(null)
@@ -86,12 +89,14 @@ export function Dashboard() {
   const fetchTop = useCallback(async () => {
     setTopError(null)
     try {
-      const [overviewResp, campaignsResp] = await Promise.all([
+      const [overviewResp, campaignsResp, benchmarksResp] = await Promise.all([
         api.get<ApiEnvelope<DashboardOverview>>('/api/dashboard/overview'),
         api.get<ApiEnvelope<Campaign[]>>('/api/campaigns'),
+        api.get<ApiEnvelope<Benchmarks>>('/api/benchmarks'),
       ])
       setOverview(overviewResp.data.data)
       setCampaigns(campaignsResp.data.data)
+      setBenchmarks(benchmarksResp.data.data)
     } catch (err) {
       setCampaigns([])
       setTopError(errorMessage(err, 'Failed to load the dashboard.'))
@@ -214,7 +219,12 @@ export function Dashboard() {
                 and start collecting metrics.
               </div>
             ) : (
-              <CampaignCharts metrics={metrics} timeline={timeline} />
+              <div className="space-y-6">
+                <CampaignCharts metrics={metrics} timeline={timeline} />
+                {benchmarks ? (
+                  <BenchmarkComparison metrics={metrics} benchmarks={benchmarks} />
+                ) : null}
+              </div>
             )}
           </CardContent>
         </Card>

@@ -3,9 +3,11 @@ import autoTable from 'jspdf-autotable'
 
 import { formatPercent, formatDuration } from '@/lib/format'
 import type {
+  Benchmarks,
   Campaign,
   CampaignMetrics,
   CampaignTargetResult,
+  MetricBenchmark,
   TargetOutcome,
 } from '@/types'
 
@@ -17,6 +19,25 @@ export interface CampaignPdfArgs {
   targetCount: number
   metrics: CampaignMetrics
   targets: CampaignTargetResult[]
+  benchmarks: Benchmarks | null
+}
+
+/** Plain-text interpretation of a rate metric vs its benchmark. */
+function interpretRate(
+  key: 'click_rate' | 'report_rate',
+  value: number,
+  b: MetricBenchmark,
+): string {
+  const bv = b.value as number
+  const pct = formatPercent(bv)
+  if (key === 'click_rate') {
+    if (value > bv + 0.05) return `Above the industry average (${pct}) — higher susceptibility than the benchmark.`
+    if (value < bv - 0.05) return `Below the industry average (${pct}) — lower susceptibility than the benchmark.`
+    return `Approximately at the industry average (${pct}).`
+  }
+  // report_rate — higher is better
+  if (value >= bv) return `At or above the mature-programme reporting threshold (${pct}).`
+  return `Below the mature-programme reporting threshold (${pct}).`
 }
 
 /** jspdf-autotable sets `lastAutoTable` on the doc at runtime but doesn't
@@ -62,7 +83,7 @@ function displayName(first: string | null, last: string | null): string {
 /** Build and download a single-campaign PDF report (numbers and tables only —
  *  no charts, per the feature spec). Uses only data already loaded on the page. */
 export function exportCampaignPdf(args: CampaignPdfArgs): void {
-  const { campaign, templateName, groupName, profileName, targetCount, metrics, targets } = args
+  const { campaign, templateName, groupName, profileName, targetCount, metrics, targets, benchmarks } = args
 
   const now = new Date()
   const doc = new jsPDF({ unit: 'pt', format: 'a4' })
@@ -131,6 +152,56 @@ export function exportCampaignPdf(args: CampaignPdfArgs): void {
     columnStyles: { 0: { fontStyle: 'bold', cellWidth: 200 } },
     margin: { left: marginX, right: marginX },
   })
+
+  // --- Benchmark comparison section ---
+  if (benchmarks) {
+    const benchmarkBody: [string, string, string, string][] = [
+      [
+        benchmarks.click_rate.label,
+        formatPercent(metrics.click_rate),
+        benchmarks.click_rate.value !== null
+          ? `~${formatPercent(benchmarks.click_rate.value)}\n${benchmarks.click_rate.source ?? ''}`
+          : '—\nNo published baseline',
+        interpretRate('click_rate', metrics.click_rate, benchmarks.click_rate),
+      ],
+      [
+        benchmarks.report_rate.label,
+        formatPercent(metrics.report_rate),
+        benchmarks.report_rate.value !== null
+          ? `≥${formatPercent(benchmarks.report_rate.value)}\n${benchmarks.report_rate.source ?? ''}`
+          : '—\nNo published baseline',
+        interpretRate('report_rate', metrics.report_rate, benchmarks.report_rate),
+      ],
+      [
+        benchmarks.avg_time_to_click.label,
+        formatDuration(metrics.avg_time_to_click_seconds),
+        '—\nNo published baseline',
+        benchmarks.avg_time_to_click.note ?? '',
+      ],
+      [
+        benchmarks.avg_time_to_report.label,
+        formatDuration(metrics.avg_time_to_report_seconds),
+        '—\nNo published baseline',
+        benchmarks.avg_time_to_report.note ?? '',
+      ],
+    ]
+
+    autoTable(doc, {
+      startY: lastTableBottom(doc) + 20,
+      head: [['Metric', 'This campaign', 'Baseline & source', 'Interpretation']],
+      body: benchmarkBody,
+      theme: 'striped',
+      styles: { fontSize: 9, cellPadding: 4 },
+      headStyles: { fillColor: [30, 41, 59], textColor: 255 },
+      columnStyles: {
+        0: { fontStyle: 'bold', cellWidth: 110 },
+        1: { cellWidth: 70 },
+        2: { cellWidth: 130 },
+        3: { cellWidth: 'auto' },
+      },
+      margin: { left: marginX, right: marginX },
+    })
+  }
 
   // --- Per-target results table ---
   const targetBody = targets.map((t) => [

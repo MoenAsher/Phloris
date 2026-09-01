@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { isAxiosError } from 'axios'
 import { Plus, Pencil, Trash2, Send, X } from 'lucide-react'
 
@@ -73,6 +74,7 @@ function ProfilesTableSkeleton() {
 }
 
 export function SendingProfiles() {
+  const [searchParams, setSearchParams] = useSearchParams()
   const [profiles, setProfiles] = useState<SendingProfile[] | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
 
@@ -106,6 +108,18 @@ export function SendingProfiles() {
   useEffect(() => {
     void fetchProfiles()
   }, [fetchProfiles])
+
+  // If navigated here from search with ?edit=:id, open the edit dialog for that profile.
+  useEffect(() => {
+    const editId = searchParams.get('edit')
+    if (!editId || !profiles) return
+    const target = profiles.find((p) => p.id === Number(editId))
+    if (target) {
+      setEditing(target)
+      setFormOpen(true)
+      setSearchParams({}, { replace: true })
+    }
+  }, [searchParams, profiles, setSearchParams])
 
   function openCreate() {
     setEditing(null)

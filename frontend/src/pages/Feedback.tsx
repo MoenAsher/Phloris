@@ -1,48 +1,29 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ShieldCheck, Lightbulb, ArrowRight, Loader2 } from 'lucide-react'
+import { ShieldCheck, ArrowRight, Clock } from 'lucide-react'
 
 import { api } from '@/lib/api'
 import type { ApiEnvelope, FeedbackInfo } from '@/types'
+import { LEARN_MODULES } from './learn/modules'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
-
-const GENERAL_TIPS = [
-  "Check the sender's real email address, not just the display name.",
-  'Hover over links to preview where they really go before clicking.',
-  "Be cautious of urgency or pressure — 'act now', 'account suspended'.",
-  'Never enter your password after following a link in an email; open the site directly.',
-  'When something feels off, report it to your security team.',
-]
+import { Card, CardContent, CardHeader } from '@/components/ui/card'
 
 export function Feedback() {
-  const { token } = useParams()
+  const { token } = useParams<{ token: string }>()
   const [info, setInfo] = useState<FeedbackInfo | null>(null)
-  const [status, setStatus] = useState<'loading' | 'ok' | 'error'>('loading')
 
   useEffect(() => {
-    if (!token) {
-      setStatus('error')
-      return
-    }
+    if (!token) return
     api
       .get<ApiEnvelope<FeedbackInfo>>(`/api/feedback/${token}`)
-      .then((r) => {
-        setInfo(r.data.data)
-        setStatus('ok')
-      })
-      .catch(() => setStatus('error'))
+      .then((r) => setInfo(r.data.data))
+      .catch(() => {})
   }, [token])
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-emerald-50 to-background px-4 py-12">
-      <div className="mx-auto max-w-2xl space-y-6">
+      <div className="mx-auto max-w-2xl space-y-8">
         {/* Reassuring header */}
         <div className="text-center">
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100">
@@ -51,62 +32,69 @@ export function Feedback() {
           <h1 className="text-2xl font-semibold tracking-tight">
             This was a phishing simulation
           </h1>
-          <p className="mx-auto mt-2 max-w-prose text-sm text-muted-foreground">
-            You clicked a link in a simulated phishing email sent by your security
-            team. Nothing was harmed and nothing was compromised — there's no need to
-            worry. This is simply a safe chance to sharpen your instincts.
+          {info?.campaign_name ? (
+            <p className="mt-1 text-xs text-muted-foreground">
+              {info.campaign_name}
+              {info.difficulty_level ? ` · ${info.difficulty_level} difficulty` : ''}
+            </p>
+          ) : null}
+          <p className="mx-auto mt-3 max-w-prose text-sm text-muted-foreground">
+            You clicked a link in a simulated phishing email sent by your security team.
+            Nothing was harmed and nothing was compromised — there's no need to worry.
+            This is a safe chance to understand why it happened and sharpen your
+            instincts.
           </p>
         </div>
 
-        {/* Template-specific tips */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Lightbulb className="h-5 w-5 text-amber-500" />
-              What to watch for in this email
-            </CardTitle>
-            {info?.template_name ? (
-              <CardDescription>
-                {info.campaign_name ? `${info.campaign_name} · ` : ''}
-                {info.difficulty_level ? `${info.difficulty_level} difficulty` : ''}
-              </CardDescription>
-            ) : null}
-          </CardHeader>
-          <CardContent className="text-sm">
-            {status === 'loading' ? (
-              <span className="flex items-center gap-2 text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Loading tips…
-              </span>
-            ) : status === 'ok' && info?.feedback_notes ? (
-              <p className="leading-relaxed text-foreground">{info.feedback_notes}</p>
-            ) : (
-              <p className="text-muted-foreground">
-                Review the general guidance below to spot emails like this one.
-              </p>
-            )}
-          </CardContent>
-        </Card>
+        {/* Why it happens intro */}
+        <div className="rounded-lg border bg-card p-5">
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            Phishing works not because its targets are careless, but because it exploits
+            cognitive mechanisms that all people share — urgency, authority, familiarity,
+            and attentional limits. Understanding these mechanisms is the most effective
+            defence. The seven short modules below cover each one.
+          </p>
+        </div>
 
-        {/* General advice */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">How to spot phishing in general</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ul className="space-y-2 text-sm">
-              {GENERAL_TIPS.map((tip) => (
-                <li key={tip} className="flex items-start gap-2">
-                  <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
-                  <span className="text-muted-foreground">{tip}</span>
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
+        {/* Module cards */}
+        <div>
+          <h2 className="mb-3 text-sm font-semibold text-foreground">
+            Why phishing works — explore the research
+          </h2>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {LEARN_MODULES.map((mod) => (
+              <Link key={mod.slug} to={`/learn/${mod.slug}`} className="group">
+                <Card className="h-full transition-shadow hover:shadow-md">
+                  <CardHeader className="pb-2 pt-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div
+                          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${mod.iconBg}`}
+                        >
+                          <mod.icon className={`h-4 w-4 ${mod.iconColor}`} />
+                        </div>
+                        <p className="text-sm font-medium leading-snug">{mod.title}</p>
+                      </div>
+                      <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pb-4">
+                    <p className="mb-2 text-xs text-muted-foreground">
+                      {mod.description}
+                    </p>
+                    <Badge className="gap-1 border-transparent bg-muted text-muted-foreground text-xs font-normal">
+                      <Clock className="h-3 w-3" />
+                      {mod.readTime}
+                    </Badge>
+                  </CardContent>
+                </Card>
+              </Link>
+            ))}
+          </div>
+        </div>
 
         {/* Link to personal performance */}
-        {status === 'ok' && token ? (
+        {token ? (
           <div className="flex justify-center">
             <Button asChild variant="outline" className="gap-2">
               <Link to={`/performance/${token}`}>

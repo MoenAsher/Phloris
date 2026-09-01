@@ -12,6 +12,7 @@ import {
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/context/AuthContext'
+import { GlobalSearch } from './GlobalSearch'
 
 const NAV_ITEMS = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
@@ -78,10 +79,11 @@ export function AppLayout() {
       </aside>
 
       <div className="flex flex-1 flex-col">
-        <header className="flex h-14 items-center border-b px-6">
+        <header className="flex h-14 items-center justify-between border-b px-6">
           <h1 className="text-sm font-semibold text-muted-foreground">
             Phishing Simulation Framework
           </h1>
+          <GlobalSearch />
         </header>
         <main className="flex-1 p-6">
           <Outlet />

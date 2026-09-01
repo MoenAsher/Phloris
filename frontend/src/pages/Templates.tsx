@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { isAxiosError } from 'axios'
 import { Plus, Pencil, Trash2, Eye } from 'lucide-react'
 
@@ -64,6 +65,7 @@ function TemplatesTableSkeleton() {
 }
 
 export function Templates() {
+  const [searchParams, setSearchParams] = useSearchParams()
   const [templates, setTemplates] = useState<Template[] | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
 
@@ -96,6 +98,18 @@ export function Templates() {
   useEffect(() => {
     void fetchTemplates()
   }, [fetchTemplates])
+
+  // If navigated here from search with ?edit=:id, open the edit dialog for that template.
+  useEffect(() => {
+    const editId = searchParams.get('edit')
+    if (!editId || !templates) return
+    const target = templates.find((t) => t.id === Number(editId))
+    if (target) {
+      setEditing(target)
+      setFormOpen(true)
+      setSearchParams({}, { replace: true })
+    }
+  }, [searchParams, templates, setSearchParams])
 
   function openCreate() {
     setEditing(null)

@@ -17,6 +17,7 @@ import { api } from '@/lib/api'
 import { exportCampaignPdf } from '@/lib/campaignPdf'
 import type {
   ApiEnvelope,
+  Benchmarks,
   Campaign,
   CampaignMetrics,
   CampaignTargetResult,
@@ -54,6 +55,7 @@ import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { StatusBadge } from '@/components/campaigns/StatusBadge'
 import { OutcomeBadge } from '@/components/campaigns/OutcomeBadge'
+import { BenchmarkComparison } from '@/components/campaigns/BenchmarkComparison'
 import { CampaignCharts } from '@/components/campaigns/CampaignCharts'
 
 function errorMessage(err: unknown, fallback: string): string {
@@ -178,6 +180,7 @@ export function CampaignDetail() {
 
   const [metrics, setMetrics] = useState<CampaignMetrics | null>(null)
   const [timeline, setTimeline] = useState<CampaignTimeline | null>(null)
+  const [benchmarks, setBenchmarks] = useState<Benchmarks | null>(null)
 
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [launching, setLaunching] = useState(false)
@@ -208,6 +211,7 @@ export function CampaignDetail() {
         targetsResp,
         metricsResp,
         timelineResp,
+        benchmarksResp,
       ] = await Promise.all([
         api.get<ApiEnvelope<Campaign>>(`/api/campaigns/${campaignId}`),
         api.get<ApiEnvelope<Template[]>>('/api/templates'),
@@ -218,6 +222,7 @@ export function CampaignDetail() {
         ),
         api.get<ApiEnvelope<CampaignMetrics>>(`/api/dashboard/campaigns/${campaignId}/metrics`),
         api.get<ApiEnvelope<CampaignTimeline>>(`/api/dashboard/campaigns/${campaignId}/timeline`),
+        api.get<ApiEnvelope<Benchmarks>>('/api/benchmarks'),
       ])
       const c = campaignResp.data.data
       setCampaign(c)
@@ -227,6 +232,7 @@ export function CampaignDetail() {
       setTargets(targetsResp.data.data.targets)
       setMetrics(metricsResp.data.data)
       setTimeline(timelineResp.data.data)
+      setBenchmarks(benchmarksResp.data.data)
     } catch (err) {
       setError(errorMessage(err, 'Failed to load the campaign.'))
     }
@@ -323,6 +329,7 @@ export function CampaignDetail() {
         targetCount: group?.target_count ?? targets.length,
         metrics,
         targets,
+        benchmarks,
       })
     } catch (err) {
       setExportError(errorMessage(err, 'Could not generate the PDF.'))
@@ -507,10 +514,17 @@ export function CampaignDetail() {
         </div>
       ) : null}
 
-      {/* Per-campaign charts — only shown once the campaign is active */}
+      {/* Per-campaign charts + benchmark comparison — only shown once active */}
       {campaign.status === 'running' || campaign.status === 'completed'
         ? metrics && timeline
-            ? <CampaignCharts metrics={metrics} timeline={timeline} />
+            ? (
+              <div className="space-y-4">
+                <CampaignCharts metrics={metrics} timeline={timeline} />
+                {benchmarks ? (
+                  <BenchmarkComparison metrics={metrics} benchmarks={benchmarks} />
+                ) : null}
+              </div>
+            )
             : <ChartsSkeleton />
         : null}
 

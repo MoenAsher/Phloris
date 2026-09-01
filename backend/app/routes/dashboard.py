@@ -14,6 +14,7 @@ from flask import Blueprint, jsonify
 from flask_jwt_extended import jwt_required
 from sqlalchemy import func
 
+from ..benchmarks import BENCHMARKS
 from ..extensions import db
 from ..models import Campaign, Target, Event, EventType
 from ..services.metrics import campaign_metrics
@@ -39,6 +40,13 @@ def _distinct_pair_count(event_type: EventType) -> int:
         .subquery()
     )
     return db.session.query(func.count()).select_from(subquery).scalar()
+
+
+@dashboard_bp.get("/benchmarks")
+@jwt_required()
+def benchmarks_endpoint():
+    """Industry benchmarks for the four behavioural metrics (read from benchmarks.py)."""
+    return jsonify({"data": BENCHMARKS}), 200
 
 
 @dashboard_bp.get("/dashboard/overview")
