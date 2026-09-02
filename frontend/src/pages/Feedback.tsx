@@ -46,6 +46,18 @@ export function Feedback() {
           </p>
         </div>
 
+        {/* Link to personal performance */}
+        {token ? (
+          <div className="flex justify-center">
+            <Button asChild variant="outline" className="gap-2">
+              <Link to={`/performance/${token}`}>
+                See your results
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </Button>
+          </div>
+        ) : null}
+
         {/* Why it happens intro */}
         <div className="rounded-lg border bg-card p-5">
           <p className="text-sm leading-relaxed text-muted-foreground">
@@ -92,18 +104,6 @@ export function Feedback() {
             ))}
           </div>
         </div>
-
-        {/* Link to personal performance */}
-        {token ? (
-          <div className="flex justify-center">
-            <Button asChild variant="outline" className="gap-2">
-              <Link to={`/performance/${token}`}>
-                See your results
-                <ArrowRight className="h-4 w-4" />
-              </Link>
-            </Button>
-          </div>
-        ) : null}
       </div>
     </div>
   )
