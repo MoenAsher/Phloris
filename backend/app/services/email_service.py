@@ -178,7 +178,7 @@ def _send_via_profile(
     msg["Subject"] = subject
     msg["From"] = profile.from_address
     msg["To"] = recipient
-    msg.attach(MIMEText(html_body, "html"))
+    msg.attach(MIMEText(html_body, "html", "utf-8"))
 
     if profile.use_tls and profile.smtp_port == 465:
         context = ssl.create_default_context(cafile=certifi.where())
@@ -191,6 +191,6 @@ def _send_via_profile(
     try:
         if profile.smtp_username and password:
             server.login(profile.smtp_username, password)
-        server.sendmail(profile.from_address, [recipient], msg.as_string())
+        server.sendmail(profile.from_address, [recipient], msg.as_bytes())
     finally:
         server.quit()
