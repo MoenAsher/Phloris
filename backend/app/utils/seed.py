@@ -34,7 +34,7 @@ from ..models import (
     User,
 )
 
-ADMIN_EMAIL = "admin@simulation.local"
+ADMIN_EMAIL = "admin@phloris.com"
 
 # ---------------------------------------------------------------------------
 # Template definitions
@@ -200,16 +200,11 @@ def _seed_admin() -> None:
         print(f"Admin user already exists: {ADMIN_EMAIL} (unchanged).")
         return
 
-    password = secrets.token_urlsafe(12)
+    password = "Phloris123"
     admin = User(email=ADMIN_EMAIL)
     admin.set_password(password)
     db.session.add(admin)
-    print("=" * 56)
-    print("Created admin user:")
-    print(f"  email:    {ADMIN_EMAIL}")
-    print(f"  password: {password}")
-    print("  (store this now — it will not be shown again)")
-    print("=" * 56)
+    print(f"Created admin user: {ADMIN_EMAIL} / {password}")
 
 
 def _seed_templates() -> None:
