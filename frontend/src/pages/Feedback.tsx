@@ -75,7 +75,11 @@ export function Feedback() {
           </h2>
           <div className="grid gap-3 sm:grid-cols-2">
             {LEARN_MODULES.map((mod) => (
-              <Link key={mod.slug} to={`/learn/${mod.slug}`} className="group">
+              <Link
+                key={mod.slug}
+                to={token ? `/learn/${mod.slug}?token=${token}` : `/learn/${mod.slug}`}
+                className="group"
+              >
                 <Card className="h-full transition-shadow hover:shadow-md">
                   <CardHeader className="pb-2 pt-4">
                     <div className="flex items-start justify-between gap-3">

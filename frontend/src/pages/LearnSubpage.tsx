@@ -1,4 +1,4 @@
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, Clock, ChevronLeft } from 'lucide-react'
 
 import { LEARN_MODULES } from './learn/modules'
@@ -7,6 +7,9 @@ import { Button } from '@/components/ui/button'
 
 export function LearnSubpage() {
   const { slug } = useParams<{ slug: string }>()
+  const [searchParams] = useSearchParams()
+  const token = searchParams.get('token')
+  const backToLibrary = token ? `/feedback/${token}` : '/learn'
   const index = LEARN_MODULES.findIndex((m) => m.slug === slug)
   const mod = LEARN_MODULES[index]
 
@@ -19,7 +22,7 @@ export function LearnSubpage() {
         <div className="text-center">
           <p className="text-lg font-medium">Module not found</p>
           <Button asChild variant="link" className="mt-2">
-            <Link to="/learn">Back to library</Link>
+            <Link to={backToLibrary}>Back to library</Link>
           </Button>
         </div>
       </div>
@@ -34,7 +37,7 @@ export function LearnSubpage() {
         {/* Back to library */}
         <div>
           <Link
-            to="/learn"
+            to={backToLibrary}
             className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
           >
             <ChevronLeft className="h-4 w-4" />
@@ -67,7 +70,7 @@ export function LearnSubpage() {
         <div className="flex items-center justify-between gap-4 border-t pt-6">
           {prev ? (
             <Link
-              to={`/learn/${prev.slug}`}
+              to={token ? `/learn/${prev.slug}?token=${token}` : `/learn/${prev.slug}`}
               className="group flex max-w-[48%] items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
             >
               <ArrowLeft className="h-4 w-4 shrink-0 transition-transform group-hover:-translate-x-0.5" />
@@ -78,7 +81,7 @@ export function LearnSubpage() {
           )}
           {next ? (
             <Link
-              to={`/learn/${next.slug}`}
+              to={token ? `/learn/${next.slug}?token=${token}` : `/learn/${next.slug}`}
               className="group ml-auto flex max-w-[48%] items-center gap-2 text-right text-sm text-muted-foreground transition-colors hover:text-foreground"
             >
               <span className="line-clamp-2">{next.title}</span>

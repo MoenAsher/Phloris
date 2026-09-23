@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { BookOpen, ArrowRight, Clock } from 'lucide-react'
 
 import { LEARN_MODULES } from './learn/modules'
@@ -6,6 +6,9 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 
 export function Learn() {
+  const [searchParams] = useSearchParams()
+  const token = searchParams.get('token')
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-indigo-50 to-background px-4 py-12">
       <div className="mx-auto max-w-2xl space-y-8">
@@ -26,7 +29,11 @@ export function Learn() {
         {/* Module cards */}
         <div className="grid gap-3 sm:grid-cols-2">
           {LEARN_MODULES.map((mod) => (
-            <Link key={mod.slug} to={`/learn/${mod.slug}`} className="group">
+            <Link
+              key={mod.slug}
+              to={token ? `/learn/${mod.slug}?token=${token}` : `/learn/${mod.slug}`}
+              className="group"
+            >
               <Card className="h-full transition-shadow hover:shadow-md">
                 <CardHeader className="pb-2 pt-4">
                   <div className="flex items-start justify-between gap-3">
